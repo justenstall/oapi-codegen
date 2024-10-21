@@ -532,6 +532,11 @@ func FilterParameterDefinitionByType(params []ParameterDefinition, in string) []
 
 // OperationDefinitions returns all operations for a swagger definition.
 func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
+	return globalState.operationDefinitions(swagger, initialismOverrides)
+}
+
+// operationDefinitions returns all operations for a swagger definition.
+func (state *State) operationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
 	var operations []OperationDefinition
 
 	var toCamelCaseFunc func(string) string
@@ -588,7 +593,7 @@ func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]Oper
 				return nil, err
 			}
 
-			ensureExternalRefsInParameterDefinitions(&allParams, pathItem.Ref)
+			state.ensureExternalRefsInParameterDefinitions(&allParams, pathItem.Ref)
 
 			// Order the path parameters to match the order as specified in
 			// the path, not in the swagger spec, and validate that the parameter
@@ -604,14 +609,14 @@ func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]Oper
 				return nil, fmt.Errorf("error generating body definitions: %w", err)
 			}
 
-			ensureExternalRefsInRequestBodyDefinitions(&bodyDefinitions, pathItem.Ref)
+			state.ensureExternalRefsInRequestBodyDefinitions(&bodyDefinitions, pathItem.Ref)
 
 			responseDefinitions, err := GenerateResponseDefinitions(op.OperationID, op.Responses.Map())
 			if err != nil {
 				return nil, fmt.Errorf("error generating response definitions: %w", err)
 			}
 
-			ensureExternalRefsInResponseDefinitions(&responseDefinitions, pathItem.Ref)
+			state.ensureExternalRefsInResponseDefinitions(&responseDefinitions, pathItem.Ref)
 
 			opDef := OperationDefinition{
 				PathParams:   pathParams,
@@ -640,7 +645,6 @@ func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]Oper
 				// They are the default securityPermissions which are injected into each
 				// path, except for the case where a path explicitly overrides them.
 				opDef.SecurityDefinitions = DescribeSecurityDefinition(swagger.Security)
-
 			}
 
 			if op.RequestBody != nil {
@@ -657,7 +661,7 @@ func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]Oper
 }
 
 func generateDefaultOperationID(opName string, requestPath string, toCamelCaseFunc func(string) string) (string, error) {
-	var operationId = strings.ToLower(opName)
+	operationId := strings.ToLower(opName)
 
 	if opName == "" {
 		return "", fmt.Errorf("operation name cannot be an empty string")
@@ -1011,7 +1015,6 @@ func GenerateStdHTTPServer(t *template.Template, operations []OperationDefinitio
 }
 
 func GenerateStrictServer(t *template.Template, operations []OperationDefinition, opts Configuration) (string, error) {
-
 	var templates []string
 
 	if opts.Generate.ChiServer || opts.Generate.GorillaServer || opts.Generate.StdHTTPServer {

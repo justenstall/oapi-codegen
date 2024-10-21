@@ -25,30 +25,31 @@ func TestToCamelCase(t *testing.T) {
 	tests := []struct {
 		str  string
 		want string
-	}{{
-		str:  "",
-		want: "",
-	}, {
-		str:  " foo_bar ",
-		want: "FooBar",
-	}, {
-		str:  "hi hello-hey-hallo",
-		want: "HiHelloHeyHallo",
-	}, {
-		str:  "foo#bar",
-		want: "FooBar",
-	}, {
-		str:  "foo2bar",
-		want: "Foo2bar",
-	}, {
-		// Test that each substitution works
-		str:  "word.word-WORD+Word_word~word(Word)Word{Word}Word[Word]Word:Word;",
-		want: "WordWordWORDWordWordWordWordWordWordWordWordWordWord",
-	}, {
-		// Make sure numbers don't interact in a funny way.
-		str:  "number-1234",
-		want: "Number1234",
-	},
+	}{
+		{
+			str:  "",
+			want: "",
+		}, {
+			str:  " foo_bar ",
+			want: "FooBar",
+		}, {
+			str:  "hi hello-hey-hallo",
+			want: "HiHelloHeyHallo",
+		}, {
+			str:  "foo#bar",
+			want: "FooBar",
+		}, {
+			str:  "foo2bar",
+			want: "Foo2bar",
+		}, {
+			// Test that each substitution works
+			str:  "word.word-WORD+Word_word~word(Word)Word{Word}Word[Word]Word:Word;",
+			want: "WordWordWORDWordWordWordWordWordWordWordWordWordWord",
+		}, {
+			// Make sure numbers don't interact in a funny way.
+			str:  "number-1234",
+			want: "Number1234",
+		},
 	}
 	for i := range tests {
 		tt := tests[i]
@@ -62,33 +63,34 @@ func TestToCamelCaseWithDigits(t *testing.T) {
 	tests := []struct {
 		str  string
 		want string
-	}{{
-		str:  "",
-		want: "",
-	}, {
-		str:  " foo_bar ",
-		want: "FooBar",
-	}, {
-		str:  "hi hello-hey-hallo",
-		want: "HiHelloHeyHallo",
-	}, {
-		str:  "foo#bar",
-		want: "FooBar",
-	}, {
-		str:  "foo2bar",
-		want: "Foo2Bar",
-	}, {
-		str:  "пир2пир",
-		want: "Пир2Пир",
-	}, {
-		// Test that each substitution works
-		str:  "word.word3word-WORD+Word_word~word(Word)Word{Word}Word[Word]Word:Word;",
-		want: "WordWord3WordWORDWordWordWordWordWordWordWordWordWordWord",
-	}, {
-		// Make sure numbers don't interact in a funny way.
-		str:  "number-1234",
-		want: "Number1234",
-	},
+	}{
+		{
+			str:  "",
+			want: "",
+		}, {
+			str:  " foo_bar ",
+			want: "FooBar",
+		}, {
+			str:  "hi hello-hey-hallo",
+			want: "HiHelloHeyHallo",
+		}, {
+			str:  "foo#bar",
+			want: "FooBar",
+		}, {
+			str:  "foo2bar",
+			want: "Foo2Bar",
+		}, {
+			str:  "пир2пир",
+			want: "Пир2Пир",
+		}, {
+			// Test that each substitution works
+			str:  "word.word3word-WORD+Word_word~word(Word)Word{Word}Word[Word]Word:Word;",
+			want: "WordWord3WordWORDWordWordWordWordWordWordWordWordWordWord",
+		}, {
+			// Make sure numbers don't interact in a funny way.
+			str:  "number-1234",
+			want: "Number1234",
+		},
 	}
 	for i := range tests {
 		tt := tests[i]
@@ -228,10 +230,10 @@ components:
 
 		assert.EqualValues(t, expected, actual, "Keys are not sorted properly")
 	})
-
 }
 
 func TestRefPathToGoType(t *testing.T) {
+	globalState := &State{}
 	old := globalState.importMapping
 	globalState.importMapping = constructImportMapping(
 		map[string]string{

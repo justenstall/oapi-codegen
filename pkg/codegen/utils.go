@@ -435,34 +435,44 @@ func RefPathToObjName(refPath string) string {
 // URL components (http://deepmap.com/schemas/document.json#/Foo) are supported if they present in --import-mapping
 // Remote and URL also support standard local paths even though the spec doesn't mention them.
 func RefPathToGoType(refPath string) (string, error) {
-	return refPathToGoType(refPath, true)
+	return globalState.refPathToGoType(refPath, true)
+}
+
+// RefPathToGoType takes a $ref value and converts it to a Go typename.
+// #/components/schemas/Foo -> Foo
+// #/components/parameters/Bar -> Bar
+// #/components/responses/Baz -> Baz
+// Remote components (document.json#/Foo) are supported if they present in --import-mapping
+// URL components (http://deepmap.com/schemas/document.json#/Foo) are supported if they present in --import-mapping
+// Remote and URL also support standard local paths even though the spec doesn't mention them.
+func (state *State) RefPathToGoType(refPath string) (string, error) {
+	return state.refPathToGoType(refPath, true)
 }
 
 // refPathToGoType returns the Go typename for refPath given its
-func refPathToGoType(refPath string, local bool) (string, error) {
+func (state *State) refPathToGoType(refPath string, local bool) (string, error) {
 	if refPath[0] == '#' {
-		return refPathToGoTypeSelf(refPath, local)
+		return state.refPathToGoTypeSelf(refPath, local)
 	}
 	pathParts := strings.Split(refPath, "#")
 	if len(pathParts) != 2 {
 		return "", fmt.Errorf("unsupported reference: %s", refPath)
 	}
 	remoteComponent, flatComponent := pathParts[0], pathParts[1]
-	goPkg, ok := globalState.importMapping[remoteComponent]
+	goPkg, ok := state.importMapping[remoteComponent]
 
 	if !ok {
 		return "", fmt.Errorf("unrecognized external reference '%s'; please provide the known import for this reference using option --import-mapping", remoteComponent)
 	}
 
 	if goPkg.Path == importMappingCurrentPackage {
-		return refPathToGoTypeSelf(fmt.Sprintf("#%s", pathParts[1]), local)
+		return state.refPathToGoTypeSelf(fmt.Sprintf("#%s", pathParts[1]), local)
 	}
 
-	return refPathToGoTypeRemote(flatComponent, goPkg)
-
+	return state.refPathToGoTypeRemote(flatComponent, goPkg)
 }
 
-func refPathToGoTypeSelf(refPath string, local bool) (string, error) {
+func (globalState *State) refPathToGoTypeSelf(refPath string, local bool) (string, error) {
 	pathParts := strings.Split(refPath, "/")
 	depth := len(pathParts)
 	if local {
@@ -488,8 +498,8 @@ func refPathToGoTypeSelf(refPath string, local bool) (string, error) {
 	return SchemaNameToTypeName(lastPart), nil
 }
 
-func refPathToGoTypeRemote(flatComponent string, goPkg goImport) (string, error) {
-	goType, err := refPathToGoType("#"+flatComponent, false)
+func (state *State) refPathToGoTypeRemote(flatComponent string, goPkg goImport) (string, error) {
+	goType, err := state.refPathToGoType("#"+flatComponent, false)
 	if err != nil {
 		return "", err
 	}

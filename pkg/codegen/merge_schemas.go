@@ -11,9 +11,15 @@ import (
 // MergeSchemas merges all the fields in the schemas supplied into one giant schema.
 // The idea is that we merge all fields together into one schema.
 func MergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
+	return globalState.mergeSchemas(allOf, path)
+}
+
+// mergeSchemas merges all the fields in the schemas supplied into one giant schema.
+// The idea is that we merge all fields together into one schema.
+func (state *State) mergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
 	// If someone asked for the old way, for backward compatibility, return the
 	// old style result.
-	if globalState.options.Compatibility.OldMergeSchemas {
+	if state.options.Compatibility.OldMergeSchemas {
 		return mergeSchemasV1(allOf, path)
 	}
 	return mergeSchemas(allOf, path)
@@ -151,43 +157,36 @@ func mergeOpenapiSchemas(s1, s2 openapi3.Schema, allOf bool) (openapi3.Schema, e
 	// If two schemas disagree on any of these flags, we error out.
 	if s1.UniqueItems != s2.UniqueItems {
 		return openapi3.Schema{}, errors.New("merging two schemas with different UniqueItems")
-
 	}
 	result.UniqueItems = s1.UniqueItems
 
 	if s1.ExclusiveMin != s2.ExclusiveMin {
 		return openapi3.Schema{}, errors.New("merging two schemas with different ExclusiveMin")
-
 	}
 	result.ExclusiveMin = s1.ExclusiveMin
 
 	if s1.ExclusiveMax != s2.ExclusiveMax {
 		return openapi3.Schema{}, errors.New("merging two schemas with different ExclusiveMax")
-
 	}
 	result.ExclusiveMax = s1.ExclusiveMax
 
 	if s1.Nullable != s2.Nullable {
 		return openapi3.Schema{}, errors.New("merging two schemas with different Nullable")
-
 	}
 	result.Nullable = s1.Nullable
 
 	if s1.ReadOnly != s2.ReadOnly {
 		return openapi3.Schema{}, errors.New("merging two schemas with different ReadOnly")
-
 	}
 	result.ReadOnly = s1.ReadOnly
 
 	if s1.WriteOnly != s2.WriteOnly {
 		return openapi3.Schema{}, errors.New("merging two schemas with different WriteOnly")
-
 	}
 	result.WriteOnly = s1.WriteOnly
 
 	if s1.AllowEmptyValue != s2.AllowEmptyValue {
 		return openapi3.Schema{}, errors.New("merging two schemas with different AllowEmptyValue")
-
 	}
 	result.AllowEmptyValue = s1.AllowEmptyValue
 
