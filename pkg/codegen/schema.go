@@ -92,9 +92,10 @@ type Property struct {
 	Deprecated    bool
 }
 
-func (p Property) GoFieldName() string {
-	return globalState.goFieldName(p)
-}
+// TODO: uncomment
+// func (p Property) GoFieldName() string {
+// 	return globalState.goFieldName(p)
+// }
 
 func (state *State) goFieldName(p Property) string {
 	goFieldName := p.JsonFieldName
@@ -117,9 +118,10 @@ func (state *State) goFieldName(p Property) string {
 	return SchemaNameToTypeName(goFieldName)
 }
 
-func (p Property) GoTypeDef() string {
-	return globalState.goTypeDef(p)
-}
+// TODO: uncomment
+// func (p Property) GoTypeDef() string {
+// 	return globalState.goTypeDef(p)
+// }
 
 func (state *State) goTypeDef(p Property) string {
 	typeDef := p.Schema.TypeDecl()

@@ -8,11 +8,12 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-// MergeSchemas merges all the fields in the schemas supplied into one giant schema.
-// The idea is that we merge all fields together into one schema.
-func MergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
-	return globalState.mergeSchemas(allOf, path)
-}
+// TODO: uncomment
+// // MergeSchemas merges all the fields in the schemas supplied into one giant schema.
+// // The idea is that we merge all fields together into one schema.
+// func MergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
+// 	return globalState.mergeSchemas(allOf, path)
+// }
 
 // mergeSchemas merges all the fields in the schemas supplied into one giant schema.
 // The idea is that we merge all fields together into one schema.
@@ -20,7 +21,7 @@ func (state *State) mergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Sc
 	// If someone asked for the old way, for backward compatibility, return the
 	// old style result.
 	if state.options.Compatibility.OldMergeSchemas {
-		return mergeSchemasV1(allOf, path)
+		return state.mergeSchemasV1(allOf, path)
 	}
 	return mergeSchemas(allOf, path)
 }

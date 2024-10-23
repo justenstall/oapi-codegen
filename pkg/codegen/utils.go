@@ -427,16 +427,17 @@ func RefPathToObjName(refPath string) string {
 	return ""
 }
 
-// RefPathToGoType takes a $ref value and converts it to a Go typename.
-// #/components/schemas/Foo -> Foo
-// #/components/parameters/Bar -> Bar
-// #/components/responses/Baz -> Baz
-// Remote components (document.json#/Foo) are supported if they present in --import-mapping
-// URL components (http://deepmap.com/schemas/document.json#/Foo) are supported if they present in --import-mapping
-// Remote and URL also support standard local paths even though the spec doesn't mention them.
-func RefPathToGoType(refPath string) (string, error) {
-	return globalState.refPathToGoType(refPath, true)
-}
+// TODO: uncomment
+// // RefPathToGoType takes a $ref value and converts it to a Go typename.
+// // #/components/schemas/Foo -> Foo
+// // #/components/parameters/Bar -> Bar
+// // #/components/responses/Baz -> Baz
+// // Remote components (document.json#/Foo) are supported if they present in --import-mapping
+// // URL components (http://deepmap.com/schemas/document.json#/Foo) are supported if they present in --import-mapping
+// // Remote and URL also support standard local paths even though the spec doesn't mention them.
+// func RefPathToGoType(refPath string) (string, error) {
+// 	return globalState.refPathToGoType(refPath, true)
+// }
 
 // RefPathToGoType takes a $ref value and converts it to a Go typename.
 // #/components/schemas/Foo -> Foo

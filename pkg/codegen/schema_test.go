@@ -210,7 +210,7 @@ func TestProperty_GoTypeDef(t *testing.T) {
 				ReadOnly:  tt.fields.ReadOnly,
 				WriteOnly: tt.fields.WriteOnly,
 			}
-			assert.Equal(t, tt.want, p.GoTypeDef())
+			assert.Equal(t, tt.want, globalState.goTypeDef(p))
 		})
 	}
 }
@@ -450,7 +450,7 @@ func TestProperty_GoTypeDef_nullable(t *testing.T) {
 				ReadOnly:  tt.fields.ReadOnly,
 				WriteOnly: tt.fields.WriteOnly,
 			}
-			assert.Equal(t, tt.want, p.GoTypeDef())
+			assert.Equal(t, tt.want, globalState.goTypeDef(p))
 		})
 	}
 }

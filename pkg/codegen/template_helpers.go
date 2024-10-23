@@ -91,7 +91,7 @@ func genParamNames(params []ParameterDefinition) string {
 
 // genResponsePayload generates the payload returned at the end of each client request function
 func genResponsePayload(operationID string) string {
-	var buffer = bytes.NewBufferString("")
+	buffer := bytes.NewBufferString("")
 
 	// Here is where we build up a response:
 	fmt.Fprintf(buffer, "&%s{\n", genResponseTypeName(operationID))
@@ -103,12 +103,12 @@ func genResponsePayload(operationID string) string {
 }
 
 // genResponseUnmarshal generates unmarshaling steps for structured response payloads
-func genResponseUnmarshal(op *OperationDefinition) string {
-	var handledCaseClauses = make(map[string]string)
-	var unhandledCaseClauses = make(map[string]string)
+func (state *State) genResponseUnmarshal(op *OperationDefinition) string {
+	handledCaseClauses := make(map[string]string)
+	unhandledCaseClauses := make(map[string]string)
 
 	// Get the type definitions from the operation:
-	typeDefinitions, err := op.GetResponseTypeDefinitions()
+	typeDefinitions, err := state.GetResponseTypeDefinitions(op)
 	if err != nil {
 		panic(err)
 	}
@@ -229,11 +229,9 @@ func genResponseUnmarshal(op *OperationDefinition) string {
 	// groups.
 	fmt.Fprintf(buffer, "switch {\n")
 	for _, caseClauseKey := range SortedMapKeys(handledCaseClauses) {
-
 		fmt.Fprintf(buffer, "%s\n", handledCaseClauses[caseClauseKey])
 	}
 	for _, caseClauseKey := range SortedMapKeys(unhandledCaseClauses) {
-
 		fmt.Fprintf(buffer, "%s\n", unhandledCaseClauses[caseClauseKey])
 	}
 	fmt.Fprintf(buffer, "}\n")
@@ -261,8 +259,8 @@ func genResponseTypeName(operationID string) string {
 	return fmt.Sprintf("%s%s", UppercaseFirstCharacter(operationID), responseTypeSuffix)
 }
 
-func getResponseTypeDefinitions(op *OperationDefinition) []ResponseTypeDefinition {
-	td, err := op.GetResponseTypeDefinitions()
+func (state *State) getResponseTypeDefinitions(op *OperationDefinition) []ResponseTypeDefinition {
+	td, err := state.GetResponseTypeDefinitions(op)
 	if err != nil {
 		panic(err)
 	}
@@ -295,32 +293,39 @@ func stripNewLines(s string) string {
 	return r.Replace(s)
 }
 
+// TODO: uncomment
+// // TemplateFunctions is passed to the template engine, and we can call each
+// // function here by keyName from the template code.
+// var TemplateFunctions = globalState.TemplateFunctions()
+
 // TemplateFunctions is passed to the template engine, and we can call each
 // function here by keyName from the template code.
-var TemplateFunctions = template.FuncMap{
-	"genParamArgs":               genParamArgs,
-	"genParamTypes":              genParamTypes,
-	"genParamNames":              genParamNames,
-	"genParamFmtString":          ReplacePathParamsWithStr,
-	"swaggerUriToIrisUri":        SwaggerUriToIrisUri,
-	"swaggerUriToEchoUri":        SwaggerUriToEchoUri,
-	"swaggerUriToFiberUri":       SwaggerUriToFiberUri,
-	"swaggerUriToChiUri":         SwaggerUriToChiUri,
-	"swaggerUriToGinUri":         SwaggerUriToGinUri,
-	"swaggerUriToGorillaUri":     SwaggerUriToGorillaUri,
-	"swaggerUriToStdHttpUri":     SwaggerUriToStdHttpUri,
-	"lcFirst":                    LowercaseFirstCharacter,
-	"ucFirst":                    UppercaseFirstCharacter,
-	"ucFirstWithPkgName":         UppercaseFirstCharacterWithPkgName,
-	"camelCase":                  ToCamelCase,
-	"genResponsePayload":         genResponsePayload,
-	"genResponseTypeName":        genResponseTypeName,
-	"genResponseUnmarshal":       genResponseUnmarshal,
-	"getResponseTypeDefinitions": getResponseTypeDefinitions,
-	"toStringArray":              toStringArray,
-	"lower":                      strings.ToLower,
-	"title":                      titleCaser.String,
-	"stripNewLines":              stripNewLines,
-	"sanitizeGoIdentity":         SanitizeGoIdentity,
-	"toGoComment":                StringWithTypeNameToGoComment,
+func (state *State) TemplateFunctions() template.FuncMap {
+	return template.FuncMap{
+		"genParamArgs":               genParamArgs,
+		"genParamTypes":              genParamTypes,
+		"genParamNames":              genParamNames,
+		"genParamFmtString":          ReplacePathParamsWithStr,
+		"swaggerUriToIrisUri":        SwaggerUriToIrisUri,
+		"swaggerUriToEchoUri":        SwaggerUriToEchoUri,
+		"swaggerUriToFiberUri":       SwaggerUriToFiberUri,
+		"swaggerUriToChiUri":         SwaggerUriToChiUri,
+		"swaggerUriToGinUri":         SwaggerUriToGinUri,
+		"swaggerUriToGorillaUri":     SwaggerUriToGorillaUri,
+		"swaggerUriToStdHttpUri":     SwaggerUriToStdHttpUri,
+		"lcFirst":                    LowercaseFirstCharacter,
+		"ucFirst":                    UppercaseFirstCharacter,
+		"ucFirstWithPkgName":         UppercaseFirstCharacterWithPkgName,
+		"camelCase":                  ToCamelCase,
+		"genResponsePayload":         genResponsePayload,
+		"genResponseTypeName":        genResponseTypeName,
+		"genResponseUnmarshal":       state.genResponseUnmarshal,
+		"getResponseTypeDefinitions": state.getResponseTypeDefinitions,
+		"toStringArray":              toStringArray,
+		"lower":                      strings.ToLower,
+		"title":                      titleCaser.String,
+		"stripNewLines":              stripNewLines,
+		"sanitizeGoIdentity":         SanitizeGoIdentity,
+		"toGoComment":                StringWithTypeNameToGoComment,
+	}
 }

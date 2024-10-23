@@ -115,10 +115,7 @@ func constructImportMapping(importMapping map[string]string) importMap {
 // the descriptions we've built up above from the schema objects.
 // opts defines
 func Generate(spec *openapi3.T, opts Configuration) (string, error) {
-	// TODO: fix
-	globalState.options = opts
-	globalState.spec = spec
-	globalState.importMapping = constructImportMapping(opts.ImportMapping)
+	globalState = *NewGenerator(spec, opts)
 	return globalState.Generate()
 }
 
@@ -159,9 +156,11 @@ func (state *State) Generate() (string, error) {
 			opts.OutputOptions.NameNormalizer, NameNormalizers.Options())
 	}
 
+	templateFunctions := state.TemplateFunctions()
+
 	// This creates the golang templates text package
-	TemplateFunctions["opts"] = func() Configuration { return state.options }
-	t := template.New("oapi-codegen").Funcs(TemplateFunctions)
+	templateFunctions["opts"] = func() Configuration { return state.options }
+	t := template.New("oapi-codegen").Funcs(templateFunctions)
 	// This parses all of our own template files into the template object
 	// above
 	err := LoadTemplates(templates, t)
@@ -273,7 +272,7 @@ func (state *State) Generate() (string, error) {
 	if opts.Generate.Strict {
 		var responses []ResponseDefinition
 		if spec.Components != nil {
-			responses, err = GenerateResponseDefinitions("", spec.Components.Responses)
+			responses, err = state.GenerateResponseDefinitions("", spec.Components.Responses)
 			if err != nil {
 				return "", fmt.Errorf("error generation response definitions for schema: %w", err)
 			}
@@ -438,9 +437,10 @@ func (state *State) Generate() (string, error) {
 	return string(outBytes), nil
 }
 
-func GenerateTypeDefinitions(t *template.Template, swagger *openapi3.T, ops []OperationDefinition, excludeSchemas []string) (string, error) {
-	return globalState.GenerateTypeDefinitions(t, swagger, ops, excludeSchemas)
-}
+// TODO: uncomment
+// func GenerateTypeDefinitions(t *template.Template, swagger *openapi3.T, ops []OperationDefinition, excludeSchemas []string) (string, error) {
+// 	return globalState.GenerateTypeDefinitions(t, swagger, ops, excludeSchemas)
+// }
 
 func (state *State) GenerateTypeDefinitions(t *template.Template, swagger *openapi3.T, ops []OperationDefinition, excludeSchemas []string) (string, error) {
 	var allTypes []TypeDefinition
@@ -450,19 +450,19 @@ func (state *State) GenerateTypeDefinitions(t *template.Template, swagger *opena
 			return "", fmt.Errorf("error generating Go types for component schemas: %w", err)
 		}
 
-		paramTypes, err := GenerateTypesForParameters(t, swagger.Components.Parameters)
+		paramTypes, err := state.generateTypesForParameters(t, swagger.Components.Parameters)
 		if err != nil {
 			return "", fmt.Errorf("error generating Go types for component parameters: %w", err)
 		}
 		allTypes = append(schemaTypes, paramTypes...)
 
-		responseTypes, err := GenerateTypesForResponses(t, swagger.Components.Responses)
+		responseTypes, err := state.GenerateTypesForResponses(t, swagger.Components.Responses)
 		if err != nil {
 			return "", fmt.Errorf("error generating Go types for component responses: %w", err)
 		}
 		allTypes = append(allTypes, responseTypes...)
 
-		bodyTypes, err := GenerateTypesForRequestBodies(t, swagger.Components.RequestBodies)
+		bodyTypes, err := state.GenerateTypesForRequestBodies(t, swagger.Components.RequestBodies)
 		if err != nil {
 			return "", fmt.Errorf("error generating Go types for component request bodies: %w", err)
 		}
@@ -574,9 +574,16 @@ func GenerateTypesForSchemas(t *template.Template, schemas map[string]*openapi3.
 	return types, nil
 }
 
-// GenerateTypesForParameters generates type definitions for any custom types defined in the
+// TODO: uncomment
+// // GenerateTypesForParameters generates type definitions for any custom types defined in the
+// // components/parameters section of the Swagger spec.
+// func GenerateTypesForParameters(t *template.Template, params map[string]*openapi3.ParameterRef) ([]TypeDefinition, error) {
+// 	return globalState.generateTypesForParameters(t, params)
+// }
+
+// generateTypesForParameters generates type definitions for any custom types defined in the
 // components/parameters section of the Swagger spec.
-func GenerateTypesForParameters(t *template.Template, params map[string]*openapi3.ParameterRef) ([]TypeDefinition, error) {
+func (state *State) generateTypesForParameters(t *template.Template, params map[string]*openapi3.ParameterRef) ([]TypeDefinition, error) {
 	var types []TypeDefinition
 	for _, paramName := range SortedMapKeys(params) {
 		paramOrRef := params[paramName]
@@ -599,7 +606,7 @@ func GenerateTypesForParameters(t *template.Template, params map[string]*openapi
 
 		if paramOrRef.Ref != "" {
 			// Generate a reference type for referenced parameters
-			refType, err := RefPathToGoType(paramOrRef.Ref)
+			refType, err := state.RefPathToGoType(paramOrRef.Ref)
 			if err != nil {
 				return nil, fmt.Errorf("error generating Go type for (%s) in parameter %s: %w", paramOrRef.Ref, paramName, err)
 			}
@@ -611,9 +618,16 @@ func GenerateTypesForParameters(t *template.Template, params map[string]*openapi
 	return types, nil
 }
 
+// TODO: uncomment
+// // GenerateTypesForResponses generates type definitions for any custom types defined in the
+// // components/responses section of the Swagger spec.
+// func GenerateTypesForResponses(t *template.Template, responses openapi3.ResponseBodies) ([]TypeDefinition, error) {
+// 	return globalState.GenerateTypesForResponses(t, responses)
+// }
+
 // GenerateTypesForResponses generates type definitions for any custom types defined in the
 // components/responses section of the Swagger spec.
-func GenerateTypesForResponses(t *template.Template, responses openapi3.ResponseBodies) ([]TypeDefinition, error) {
+func (state *State) GenerateTypesForResponses(t *template.Template, responses openapi3.ResponseBodies) ([]TypeDefinition, error) {
 	var types []TypeDefinition
 
 	for _, responseName := range SortedMapKeys(responses) {
@@ -656,7 +670,7 @@ func GenerateTypesForResponses(t *template.Template, responses openapi3.Response
 
 			if responseOrRef.Ref != "" {
 				// Generate a reference type for referenced parameters
-				refType, err := RefPathToGoType(responseOrRef.Ref)
+				refType, err := state.RefPathToGoType(responseOrRef.Ref)
 				if err != nil {
 					return nil, fmt.Errorf("error generating Go type for (%s) in parameter %s: %w", responseOrRef.Ref, responseName, err)
 				}
@@ -673,9 +687,16 @@ func GenerateTypesForResponses(t *template.Template, responses openapi3.Response
 	return types, nil
 }
 
+// TODO: uncomment
+// // GenerateTypesForRequestBodies generates type definitions for any custom types defined in the
+// // components/requestBodies section of the Swagger spec.
+// func GenerateTypesForRequestBodies(t *template.Template, bodies map[string]*openapi3.RequestBodyRef) ([]TypeDefinition, error) {
+// 	return globalState.GenerateTypesForRequestBodies(t, bodies)
+// }
+
 // GenerateTypesForRequestBodies generates type definitions for any custom types defined in the
 // components/requestBodies section of the Swagger spec.
-func GenerateTypesForRequestBodies(t *template.Template, bodies map[string]*openapi3.RequestBodyRef) ([]TypeDefinition, error) {
+func (state *State) GenerateTypesForRequestBodies(t *template.Template, bodies map[string]*openapi3.RequestBodyRef) ([]TypeDefinition, error) {
 	var types []TypeDefinition
 
 	for _, requestBodyName := range SortedMapKeys(bodies) {
@@ -707,7 +728,7 @@ func GenerateTypesForRequestBodies(t *template.Template, bodies map[string]*open
 
 			if requestBodyRef.Ref != "" {
 				// Generate a reference type for referenced bodies
-				refType, err := RefPathToGoType(requestBodyRef.Ref)
+				refType, err := state.RefPathToGoType(requestBodyRef.Ref)
 				if err != nil {
 					return nil, fmt.Errorf("error generating Go type for (%s) in body %s: %w", requestBodyRef.Ref, requestBodyName, err)
 				}
@@ -833,10 +854,11 @@ func (state *State) GenerateEnums(t *template.Template, types []TypeDefinition) 
 	return GenerateTemplates([]string{"constants.tmpl"}, t, Constants{EnumDefinitions: enums})
 }
 
-// GenerateImports generates our import statements and package definition.
-func GenerateImports(t *template.Template, externalImports []string, packageName string, versionOverride *string) (string, error) {
-	return globalState.GenerateImports(t, externalImports, packageName, versionOverride)
-}
+// TODO: uncomment
+// // GenerateImports generates our import statements and package definition.
+// func GenerateImports(t *template.Template, externalImports []string, packageName string, versionOverride *string) (string, error) {
+// 	return globalState.GenerateImports(t, externalImports, packageName, versionOverride)
+// }
 
 // GenerateImports generates our import statements and package definition.
 func (state *State) GenerateImports(t *template.Template, externalImports []string, packageName string, versionOverride *string) (string, error) {

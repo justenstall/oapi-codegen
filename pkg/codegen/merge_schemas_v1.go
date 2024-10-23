@@ -8,7 +8,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-func mergeSchemasV1(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
+func (state *State) mergeSchemasV1(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
 	var outSchema Schema
 	for _, schemaOrRef := range allOf {
 		ref := schemaOrRef.Ref
@@ -16,7 +16,7 @@ func mergeSchemasV1(allOf []*openapi3.SchemaRef, path []string) (Schema, error) 
 		var refType string
 		var err error
 		if IsGoTypeReference(ref) {
-			refType, err = RefPathToGoType(ref)
+			refType, err = state.RefPathToGoType(ref)
 			if err != nil {
 				return Schema{}, fmt.Errorf("error converting reference path to a go type: %w", err)
 			}
@@ -53,17 +53,25 @@ func mergeSchemasV1(allOf []*openapi3.SchemaRef, path []string) (Schema, error) 
 
 	// Now, we generate the struct which merges together all the fields.
 	var err error
-	outSchema.GoType, err = GenStructFromAllOf(allOf, path)
+	outSchema.GoType, err = state.GenStructFromAllOf(allOf, path)
 	if err != nil {
 		return Schema{}, fmt.Errorf("unable to generate aggregate type for AllOf: %w", err)
 	}
 	return outSchema, nil
 }
 
+// TODO: uncomment
+// // GenStructFromAllOf generates an object that is the union of the objects in the
+// // input array. In the case of Ref objects, we use an embedded struct, otherwise,
+// // we inline the fields.
+// func GenStructFromAllOf(allOf []*openapi3.SchemaRef, path []string) (string, error) {
+// 	return globalState.GenStructFromAllOf(allOf, path)
+// }
+
 // GenStructFromAllOf generates an object that is the union of the objects in the
 // input array. In the case of Ref objects, we use an embedded struct, otherwise,
 // we inline the fields.
-func GenStructFromAllOf(allOf []*openapi3.SchemaRef, path []string) (string, error) {
+func (state *State) GenStructFromAllOf(allOf []*openapi3.SchemaRef, path []string) (string, error) {
 	// Start out with struct {
 	objectParts := []string{"struct {"}
 	for _, schemaOrRef := range allOf {
@@ -75,7 +83,7 @@ func GenStructFromAllOf(allOf []*openapi3.SchemaRef, path []string) (string, err
 			//   InlinedMember
 			//   ...
 			// }
-			goType, err := RefPathToGoType(ref)
+			goType, err := state.RefPathToGoType(ref)
 			if err != nil {
 				return "", err
 			}

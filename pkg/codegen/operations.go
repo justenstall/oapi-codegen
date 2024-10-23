@@ -150,10 +150,18 @@ func (p ParameterDefinitions) FindByName(name string) *ParameterDefinition {
 	return nil
 }
 
+// TODO: uncomment
+// // DescribeParameters walks the given parameters dictionary, and generates the above
+// // descriptors into a flat list. This makes it a lot easier to traverse the
+// // data in the template engine.
+// func DescribeParameters(params openapi3.Parameters, path []string) ([]ParameterDefinition, error) {
+// 	return globalState.DescribeParameters(params, path)
+// }
+
 // DescribeParameters walks the given parameters dictionary, and generates the above
 // descriptors into a flat list. This makes it a lot easier to traverse the
 // data in the template engine.
-func DescribeParameters(params openapi3.Parameters, path []string) ([]ParameterDefinition, error) {
+func (state *State) DescribeParameters(params openapi3.Parameters, path []string) ([]ParameterDefinition, error) {
 	outParams := make([]ParameterDefinition, 0)
 	for _, paramOrRef := range params {
 		param := paramOrRef.Value
@@ -176,7 +184,7 @@ func DescribeParameters(params openapi3.Parameters, path []string) ([]ParameterD
 		// name as the type. $ref: "#/components/schemas/custom_type" becomes
 		// "CustomType".
 		if IsGoTypeReference(paramOrRef.Ref) {
-			goType, err := RefPathToGoType(paramOrRef.Ref)
+			goType, err := state.RefPathToGoType(paramOrRef.Ref)
 			if err != nil {
 				return nil, fmt.Errorf("error dereferencing (%s) for param (%s): %s",
 					paramOrRef.Ref, param.Name, err)
@@ -268,11 +276,20 @@ func (o *OperationDefinition) SummaryAsComment() string {
 	return strings.Join(parts, "\n")
 }
 
+// TODO: uncomment
+// // GetResponseTypeDefinitions produces a list of type definitions for a given Operation for the response
+// // types which we know how to parse. These will be turned into fields on a
+// // response object for automatic deserialization of responses in the generated
+// // Client code. See "client-with-responses.tmpl".
+// func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefinition, error) {
+// 	return globalState.GetResponseTypeDefinitions(o)
+// }
+
 // GetResponseTypeDefinitions produces a list of type definitions for a given Operation for the response
 // types which we know how to parse. These will be turned into fields on a
 // response object for automatic deserialization of responses in the generated
 // Client code. See "client-with-responses.tmpl".
-func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefinition, error) {
+func (state *State) GetResponseTypeDefinitions(o *OperationDefinition) ([]ResponseTypeDefinition, error) {
 	var tds []ResponseTypeDefinition
 
 	if o.Spec == nil || o.Spec.Responses == nil {
@@ -336,7 +353,7 @@ func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefini
 						AdditionalTypeDefinitions: responseSchema.GetAdditionalTypeDefs(),
 					}
 					if IsGoTypeReference(responseRef.Ref) {
-						refType, err := RefPathToGoType(responseRef.Ref)
+						refType, err := state.RefPathToGoType(responseRef.Ref)
 						if err != nil {
 							return nil, fmt.Errorf("error dereferencing response Ref: %w", err)
 						}
@@ -530,10 +547,11 @@ func FilterParameterDefinitionByType(params []ParameterDefinition, in string) []
 	return out
 }
 
-// OperationDefinitions returns all operations for a swagger definition.
-func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
-	return globalState.operationDefinitions(swagger, initialismOverrides)
-}
+// TODO: uncomment
+// // OperationDefinitions returns all operations for a swagger definition.
+// func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
+// 	return globalState.operationDefinitions(swagger, initialismOverrides)
+// }
 
 // operationDefinitions returns all operations for a swagger definition.
 func (state *State) operationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
@@ -554,7 +572,7 @@ func (state *State) operationDefinitions(swagger *openapi3.T, initialismOverride
 		pathItem := swagger.Paths.Value(requestPath)
 		// These are parameters defined for all methods on a given path. They
 		// are shared by all methods.
-		globalParams, err := DescribeParameters(pathItem.Parameters, nil)
+		globalParams, err := state.DescribeParameters(pathItem.Parameters, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error describing global parameters for %s: %s",
 				requestPath, err)
@@ -581,7 +599,7 @@ func (state *State) operationDefinitions(swagger *openapi3.T, initialismOverride
 
 			// These are parameters defined for the specific path method that
 			// we're iterating over.
-			localParams, err := DescribeParameters(op.Parameters, []string{op.OperationID + "Params"})
+			localParams, err := state.DescribeParameters(op.Parameters, []string{op.OperationID + "Params"})
 			if err != nil {
 				return nil, fmt.Errorf("error describing global parameters for %s/%s: %s",
 					opName, requestPath, err)
@@ -604,14 +622,14 @@ func (state *State) operationDefinitions(swagger *openapi3.T, initialismOverride
 				return nil, err
 			}
 
-			bodyDefinitions, typeDefinitions, err := GenerateBodyDefinitions(op.OperationID, op.RequestBody)
+			bodyDefinitions, typeDefinitions, err := state.GenerateBodyDefinitions(op.OperationID, op.RequestBody)
 			if err != nil {
 				return nil, fmt.Errorf("error generating body definitions: %w", err)
 			}
 
 			state.ensureExternalRefsInRequestBodyDefinitions(&bodyDefinitions, pathItem.Ref)
 
-			responseDefinitions, err := GenerateResponseDefinitions(op.OperationID, op.Responses.Map())
+			responseDefinitions, err := state.GenerateResponseDefinitions(op.OperationID, op.Responses.Map())
 			if err != nil {
 				return nil, fmt.Errorf("error generating response definitions: %w", err)
 			}
@@ -680,9 +698,16 @@ func generateDefaultOperationID(opName string, requestPath string, toCamelCaseFu
 	return nameNormalizer(operationId), nil
 }
 
+// TODO: uncomment
+// // GenerateBodyDefinitions turns the Swagger body definitions into a list of our body
+// // definitions which will be used for code generation.
+// func GenerateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBodyRef) ([]RequestBodyDefinition, []TypeDefinition, error) {
+// 	return globalState.GenerateBodyDefinitions(operationID, bodyOrRef)
+// }
+
 // GenerateBodyDefinitions turns the Swagger body definitions into a list of our body
 // definitions which will be used for code generation.
-func GenerateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBodyRef) ([]RequestBodyDefinition, []TypeDefinition, error) {
+func (state *State) GenerateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBodyRef) ([]RequestBodyDefinition, []TypeDefinition, error) {
 	if bodyOrRef == nil {
 		return nil, nil, nil
 	}
@@ -726,7 +751,7 @@ func GenerateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 		// If the body is a pre-defined type
 		if content.Schema != nil && IsGoTypeReference(content.Schema.Ref) {
 			// Convert the reference path to Go type
-			refType, err := RefPathToGoType(content.Schema.Ref)
+			refType, err := state.RefPathToGoType(content.Schema.Ref)
 			if err != nil {
 				return nil, nil, fmt.Errorf("error turning reference (%s) into a Go type: %w", content.Schema.Ref, err)
 			}
@@ -781,7 +806,12 @@ func GenerateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 	return bodyDefinitions, typeDefinitions, nil
 }
 
-func GenerateResponseDefinitions(operationID string, responses map[string]*openapi3.ResponseRef) ([]ResponseDefinition, error) {
+// TODO: uncomment
+// func GenerateResponseDefinitions(operationID string, responses map[string]*openapi3.ResponseRef) ([]ResponseDefinition, error) {
+// 	return globalState.GenerateResponseDefinitions(operationID, responses)
+// }
+
+func (state *State) GenerateResponseDefinitions(operationID string, responses map[string]*openapi3.ResponseRef) ([]ResponseDefinition, error) {
 	var responseDefinitions []ResponseDefinition
 	// do not let multiple status codes ref to same response, it will break the type switch
 	refSet := make(map[string]struct{})
@@ -853,7 +883,7 @@ func GenerateResponseDefinitions(operationID string, responses map[string]*opena
 		}
 		if IsGoTypeReference(responseOrRef.Ref) {
 			// Convert the reference path to Go type
-			refType, err := RefPathToGoType(responseOrRef.Ref)
+			refType, err := state.RefPathToGoType(responseOrRef.Ref)
 			if err != nil {
 				return nil, fmt.Errorf("error turning reference (%s) into a Go type: %w", responseOrRef.Ref, err)
 			}
