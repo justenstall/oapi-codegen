@@ -473,7 +473,7 @@ func (state *State) refPathToGoType(refPath string, local bool) (string, error) 
 	return state.refPathToGoTypeRemote(flatComponent, goPkg)
 }
 
-func (globalState *State) refPathToGoTypeSelf(refPath string, local bool) (string, error) {
+func (state *State) refPathToGoTypeSelf(refPath string, local bool) (string, error) {
 	pathParts := strings.Split(refPath, "/")
 	depth := len(pathParts)
 	if local {
@@ -486,7 +486,7 @@ func (globalState *State) refPathToGoTypeSelf(refPath string, local bool) (strin
 
 	// Schemas may have been renamed locally, so look up the actual name in
 	// the spec.
-	name, err := findSchemaNameByRefPath(refPath, globalState.spec)
+	name, err := findSchemaNameByRefPath(refPath, state.spec)
 	if err != nil {
 		return "", fmt.Errorf("error finding ref: %s in spec: %v", refPath, err)
 	}
@@ -1003,7 +1003,7 @@ func renameRequestBody(requestBodyName string, requestBodyRef *openapi3.RequestB
 // if the schema wasn't found, and it'll only work successfully for schemas
 // defined within the spec that we parsed.
 func findSchemaNameByRefPath(refPath string, spec *openapi3.T) (string, error) {
-	if spec.Components == nil {
+	if spec == nil || spec.Components == nil {
 		return "", nil
 	}
 	pathElements := strings.Split(refPath, "/")

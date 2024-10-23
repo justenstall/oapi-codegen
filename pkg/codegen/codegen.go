@@ -115,7 +115,8 @@ func constructImportMapping(importMapping map[string]string) importMap {
 // the descriptions we've built up above from the schema objects.
 // opts defines
 func Generate(spec *openapi3.T, opts Configuration) (string, error) {
-	globalState = *NewGenerator(spec, opts)
+	state := NewGenerator(spec, opts)
+	globalState = *state
 	return globalState.Generate()
 }
 
@@ -445,7 +446,7 @@ func (state *State) Generate() (string, error) {
 func (state *State) GenerateTypeDefinitions(t *template.Template, swagger *openapi3.T, ops []OperationDefinition, excludeSchemas []string) (string, error) {
 	var allTypes []TypeDefinition
 	if swagger.Components != nil {
-		schemaTypes, err := GenerateTypesForSchemas(t, swagger.Components.Schemas, excludeSchemas)
+		schemaTypes, err := state.GenerateTypesForSchemas(t, swagger.Components.Schemas, excludeSchemas)
 		if err != nil {
 			return "", fmt.Errorf("error generating Go types for component schemas: %w", err)
 		}
@@ -539,11 +540,11 @@ func GenerateConstants(t *template.Template, ops []OperationDefinition) (string,
 }
 
 // TODO: uncomment
-// GenerateTypesForSchemas generates type definitions for any custom types defined in the
-// components/schemas section of the Swagger spec.
-func GenerateTypesForSchemas(t *template.Template, schemas map[string]*openapi3.SchemaRef, excludeSchemas []string) ([]TypeDefinition, error) {
-	return globalState.GenerateTypesForSchemas(t, schemas, excludeSchemas)
-}
+// // GenerateTypesForSchemas generates type definitions for any custom types defined in the
+// // components/schemas section of the Swagger spec.
+// func GenerateTypesForSchemas(t *template.Template, schemas map[string]*openapi3.SchemaRef, excludeSchemas []string) ([]TypeDefinition, error) {
+// 	return globalState.GenerateTypesForSchemas(t, schemas, excludeSchemas)
+// }
 
 // GenerateTypesForSchemas generates type definitions for any custom types defined in the
 // components/schemas section of the Swagger spec.
