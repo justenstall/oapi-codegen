@@ -550,11 +550,11 @@ func FilterParameterDefinitionByType(params []ParameterDefinition, in string) []
 // TODO: uncomment
 // // OperationDefinitions returns all operations for a swagger definition.
 // func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
-// 	return globalState.operationDefinitions(swagger, initialismOverrides)
+// 	return globalState.OperationDefinitions(swagger, initialismOverrides)
 // }
 
-// operationDefinitions returns all operations for a swagger definition.
-func (state *State) operationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
+// OperationDefinitions returns all operations for a swagger definition.
+func (state *State) OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
 	var operations []OperationDefinition
 
 	var toCamelCaseFunc func(string) string

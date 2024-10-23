@@ -183,7 +183,7 @@ func (state *State) Generate() (string, error) {
 		}
 	}
 
-	ops, err := state.operationDefinitions(spec, opts.OutputOptions.InitialismOverrides)
+	ops, err := state.OperationDefinitions(spec, opts.OutputOptions.InitialismOverrides)
 	if err != nil {
 		return "", fmt.Errorf("error creating operation definitions: %w", err)
 	}
