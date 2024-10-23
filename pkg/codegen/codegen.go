@@ -538,9 +538,16 @@ func GenerateConstants(t *template.Template, ops []OperationDefinition) (string,
 	return GenerateTemplates([]string{"constants.tmpl"}, t, constants)
 }
 
+// TODO: uncomment
 // GenerateTypesForSchemas generates type definitions for any custom types defined in the
 // components/schemas section of the Swagger spec.
 func GenerateTypesForSchemas(t *template.Template, schemas map[string]*openapi3.SchemaRef, excludeSchemas []string) ([]TypeDefinition, error) {
+	return globalState.GenerateTypesForSchemas(t, schemas, excludeSchemas)
+}
+
+// GenerateTypesForSchemas generates type definitions for any custom types defined in the
+// components/schemas section of the Swagger spec.
+func (state *State) GenerateTypesForSchemas(t *template.Template, schemas map[string]*openapi3.SchemaRef, excludeSchemas []string) ([]TypeDefinition, error) {
 	excludeSchemasMap := make(map[string]bool)
 	for _, schema := range excludeSchemas {
 		excludeSchemasMap[schema] = true
@@ -553,7 +560,7 @@ func GenerateTypesForSchemas(t *template.Template, schemas map[string]*openapi3.
 		}
 		schemaRef := schemas[schemaName]
 
-		goSchema, err := GenerateGoSchema(schemaRef, []string{schemaName})
+		goSchema, err := state.GenerateGoSchema(schemaRef, []string{schemaName})
 		if err != nil {
 			return nil, fmt.Errorf("error converting Schema %s to Go type: %w", schemaName, err)
 		}
@@ -588,7 +595,7 @@ func (state *State) generateTypesForParameters(t *template.Template, params map[
 	for _, paramName := range SortedMapKeys(params) {
 		paramOrRef := params[paramName]
 
-		goType, err := paramToGoType(paramOrRef.Value, nil)
+		goType, err := state.paramToGoType(paramOrRef.Value, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error generating Go type for schema in parameter %s: %w", paramName, err)
 		}
@@ -652,7 +659,7 @@ func (state *State) GenerateTypesForResponses(t *template.Template, responses op
 				continue
 			}
 
-			goType, err := GenerateGoSchema(response.Schema, []string{responseName})
+			goType, err := state.GenerateGoSchema(response.Schema, []string{responseName})
 			if err != nil {
 				return nil, fmt.Errorf("error generating Go type for schema in response %s: %w", responseName, err)
 			}
@@ -710,7 +717,7 @@ func (state *State) GenerateTypesForRequestBodies(t *template.Template, bodies m
 				continue
 			}
 
-			goType, err := GenerateGoSchema(body.Schema, []string{requestBodyName})
+			goType, err := state.GenerateGoSchema(body.Schema, []string{requestBodyName})
 			if err != nil {
 				return nil, fmt.Errorf("error generating Go type for schema in body %s: %w", requestBodyName, err)
 			}
@@ -773,10 +780,10 @@ func GenerateTypes(t *template.Template, types []TypeDefinition) (string, error)
 	return GenerateTemplates([]string{"typedef.tmpl"}, t, context)
 }
 
-// TODO: fix
-func GenerateEnums(t *template.Template, types []TypeDefinition) (string, error) {
-	return "", nil
-}
+// TODO: uncomment
+// func GenerateEnums(t *template.Template, types []TypeDefinition) (string, error) {
+// 	return globalState.GenerateEnums(t, types)
+// }
 
 func (state *State) GenerateEnums(t *template.Template, types []TypeDefinition) (string, error) {
 	enums := []EnumDefinition{}

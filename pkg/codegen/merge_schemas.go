@@ -15,22 +15,24 @@ import (
 // 	return globalState.mergeSchemas(allOf, path)
 // }
 
-// mergeSchemas merges all the fields in the schemas supplied into one giant schema.
+// MergeSchemas merges all the fields in the schemas supplied into one giant schema.
 // The idea is that we merge all fields together into one schema.
-func (state *State) mergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
+func (state *State) MergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
 	// If someone asked for the old way, for backward compatibility, return the
 	// old style result.
 	if state.options.Compatibility.OldMergeSchemas {
 		return state.mergeSchemasV1(allOf, path)
 	}
-	return mergeSchemas(allOf, path)
+	return state.mergeSchemas(allOf, path)
 }
 
-func mergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
+// mergeSchemas merges all the fields in the schemas supplied into one giant schema.
+// The idea is that we merge all fields together into one schema.
+func (state *State) mergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
 	n := len(allOf)
 
 	if n == 1 {
-		return GenerateGoSchema(allOf[0], path)
+		return state.GenerateGoSchema(allOf[0], path)
 	}
 
 	schema, err := valueWithPropagatedRef(allOf[0])
@@ -49,7 +51,7 @@ func mergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
 			return Schema{}, fmt.Errorf("error merging schemas for AllOf: %w", err)
 		}
 	}
-	return GenerateGoSchema(openapi3.NewSchemaRef("", &schema), path)
+	return state.GenerateGoSchema(openapi3.NewSchemaRef("", &schema), path)
 }
 
 // valueWithPropagatedRef returns a copy of ref schema with its Properties refs

@@ -213,10 +213,13 @@ type ResponseTypeDefinition struct {
 	AdditionalTypeDefinitions []TypeDefinition
 }
 
-func (t *TypeDefinition) IsAlias() bool {
-	// TODO: fix
-	// return !globalState.options.Compatibility.OldAliasing && t.Schema.DefineViaAlias
-	return t.Schema.DefineViaAlias
+// TODO: uncomment
+// func (t *TypeDefinition) IsAlias() bool {
+// 	return globalState.IsAlias(t)
+// }
+
+func (state *State) IsAlias(t *TypeDefinition) bool {
+	return !state.options.Compatibility.OldAliasing && t.Schema.DefineViaAlias
 }
 
 type Discriminator struct {
@@ -256,10 +259,10 @@ func PropertiesEqual(a, b Property) bool {
 	return a.JsonFieldName == b.JsonFieldName && a.Schema.TypeDecl() == b.Schema.TypeDecl() && a.Required == b.Required
 }
 
-func GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (Schema, error) {
-	// TODO: fix
-	return Schema{}, nil
-}
+// TODO: uncomment
+// func GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (Schema, error) {
+// 	return globalState.GenerateGoSchema(sref, path)
+// }
 
 func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (Schema, error) {
 	// Add a fallback value in case the sref is nil.
@@ -298,7 +301,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 	// so that in a RESTful paradigm, the Create operation can return
 	// (object, id), so that other operations can refer to (id)
 	if schema.AllOf != nil {
-		mergedSchema, err := state.mergeSchemas(schema.AllOf, path)
+		mergedSchema, err := state.MergeSchemas(schema.AllOf, path)
 		if err != nil {
 			return Schema{}, fmt.Errorf("error merging schemas: %w", err)
 		}
@@ -367,7 +370,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 			// If additional properties are defined, we will override the default
 			// above with the specific definition.
 			if schema.AdditionalProperties.Schema != nil {
-				additionalSchema, err := GenerateGoSchema(schema.AdditionalProperties.Schema, path)
+				additionalSchema, err := state.GenerateGoSchema(schema.AdditionalProperties.Schema, path)
 				if err != nil {
 					return Schema{}, fmt.Errorf("error generating type for additional properties: %w", err)
 				}
@@ -409,7 +412,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 			for _, pName := range SortedSchemaKeys(schema.Properties) {
 				p := schema.Properties[pName]
 				propertyPath := append(path, pName)
-				pSchema, err := GenerateGoSchema(p, propertyPath)
+				pSchema, err := state.GenerateGoSchema(p, propertyPath)
 				if err != nil {
 					return Schema{}, fmt.Errorf("error generating Go schema for property '%s': %w", pName, err)
 				}
@@ -454,17 +457,17 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 			}
 
 			if schema.AnyOf != nil {
-				if err := generateUnion(&outSchema, schema.AnyOf, schema.Discriminator, path); err != nil {
+				if err := state.generateUnion(&outSchema, schema.AnyOf, schema.Discriminator, path); err != nil {
 					return Schema{}, fmt.Errorf("error generating type for anyOf: %w", err)
 				}
 			}
 			if schema.OneOf != nil {
-				if err := generateUnion(&outSchema, schema.OneOf, schema.Discriminator, path); err != nil {
+				if err := state.generateUnion(&outSchema, schema.OneOf, schema.Discriminator, path); err != nil {
 					return Schema{}, fmt.Errorf("error generating type for oneOf: %w", err)
 				}
 			}
 
-			outSchema.GoType = GenStructFromSchema(outSchema)
+			outSchema.GoType = state.GenStructFromSchema(outSchema)
 		}
 
 		// Check for x-go-type-name. It behaves much like x-go-type, however, it will
@@ -569,7 +572,7 @@ func (state *State) oapiSchemaToGoType(schema *openapi3.Schema, path []string, o
 	if t.Is("array") {
 		// For arrays, we'll get the type of the Items and throw a
 		// [] in front of it.
-		arrayType, err := GenerateGoSchema(schema.Items, path)
+		arrayType, err := state.GenerateGoSchema(schema.Items, path)
 		if err != nil {
 			return fmt.Errorf("error generating type for array: %w", err)
 		}
@@ -684,12 +687,12 @@ type FieldDescriptor struct {
 	IsRef    bool   // Is this schema a reference to predefined object?
 }
 
-// GenFieldsFromProperties produce corresponding field names with JSON annotations,
-// given a list of schema descriptors
-func GenFieldsFromProperties(props []Property) []string {
-	// TODO: fix
-	return nil
-}
+// TODO: uncomment
+// // GenFieldsFromProperties produce corresponding field names with JSON annotations,
+// // given a list of schema descriptors
+// func GenFieldsFromProperties(props []Property) []string {
+// 	return globalState.GenFieldsFromProperties(props)
+// }
 
 // GenFieldsFromProperties produce corresponding field names with JSON annotations,
 // given a list of schema descriptors
@@ -801,11 +804,16 @@ func additionalPropertiesType(schema Schema) string {
 	return addPropsType
 }
 
-func GenStructFromSchema(schema Schema) string {
+// TODO: uncomment
+// func GenStructFromSchema(schema Schema) string {
+// 	return globalState.GenStructFromSchema(schema)
+// }
+
+func (state *State) GenStructFromSchema(schema Schema) string {
 	// Start out with struct {
 	objectParts := []string{"struct {"}
 	// Append all the field definitions
-	objectParts = append(objectParts, GenFieldsFromProperties(schema.Properties)...)
+	objectParts = append(objectParts, state.GenFieldsFromProperties(schema.Properties)...)
 	// Close the struct
 	if schema.HasAdditionalProperties {
 		objectParts = append(objectParts,
@@ -821,14 +829,14 @@ func GenStructFromSchema(schema Schema) string {
 
 // This constructs a Go type for a parameter, looking at either the schema or
 // the content, whichever is available
-func paramToGoType(param *openapi3.Parameter, path []string) (Schema, error) {
+func (state *State) paramToGoType(param *openapi3.Parameter, path []string) (Schema, error) {
 	if param.Content == nil && param.Schema == nil {
 		return Schema{}, fmt.Errorf("parameter '%s' has no schema or content", param.Name)
 	}
 
 	// We can process the schema through the generic schema processor
 	if param.Schema != nil {
-		return GenerateGoSchema(param.Schema, path)
+		return state.GenerateGoSchema(param.Schema, path)
 	}
 
 	// At this point, we have a content type. We know how to deal with
@@ -852,10 +860,10 @@ func paramToGoType(param *openapi3.Parameter, path []string) (Schema, error) {
 	}
 
 	// For json, we go through the standard schema mechanism
-	return GenerateGoSchema(mt.Schema, path)
+	return state.GenerateGoSchema(mt.Schema, path)
 }
 
-func generateUnion(outSchema *Schema, elements openapi3.SchemaRefs, discriminator *openapi3.Discriminator, path []string) error {
+func (state *State) generateUnion(outSchema *Schema, elements openapi3.SchemaRefs, discriminator *openapi3.Discriminator, path []string) error {
 	if discriminator != nil {
 		outSchema.Discriminator = &Discriminator{
 			Property: discriminator.PropertyName,
@@ -866,7 +874,7 @@ func generateUnion(outSchema *Schema, elements openapi3.SchemaRefs, discriminato
 	refToGoTypeMap := make(map[string]string)
 	for i, element := range elements {
 		elementPath := append(path, fmt.Sprint(i))
-		elementSchema, err := GenerateGoSchema(element, elementPath)
+		elementSchema, err := state.GenerateGoSchema(element, elementPath)
 		if err != nil {
 			return err
 		}

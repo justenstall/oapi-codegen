@@ -22,7 +22,7 @@ func (state *State) mergeSchemasV1(allOf []*openapi3.SchemaRef, path []string) (
 			}
 		}
 
-		schema, err := GenerateGoSchema(schemaOrRef, path)
+		schema, err := state.GenerateGoSchema(schemaOrRef, path)
 		if err != nil {
 			return Schema{}, fmt.Errorf("error generating Go schema in allOf: %w", err)
 		}
@@ -94,12 +94,12 @@ func (state *State) GenStructFromAllOf(allOf []*openapi3.SchemaRef, path []strin
 		} else {
 			// Inline all the fields from the schema into the output struct,
 			// just like in the simple case of generating an object.
-			goSchema, err := GenerateGoSchema(schemaOrRef, path)
+			goSchema, err := state.GenerateGoSchema(schemaOrRef, path)
 			if err != nil {
 				return "", err
 			}
 			objectParts = append(objectParts, "   // Embedded fields due to inline allOf schema")
-			objectParts = append(objectParts, GenFieldsFromProperties(goSchema.Properties)...)
+			objectParts = append(objectParts, state.GenFieldsFromProperties(goSchema.Properties)...)
 
 			if goSchema.HasAdditionalProperties {
 				addPropsType := goSchema.AdditionalPropertiesType.GoType

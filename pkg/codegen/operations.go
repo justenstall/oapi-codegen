@@ -166,7 +166,7 @@ func (state *State) DescribeParameters(params openapi3.Parameters, path []string
 	for _, paramOrRef := range params {
 		param := paramOrRef.Value
 
-		goType, err := paramToGoType(param, append(path, param.Name))
+		goType, err := state.paramToGoType(param, append(path, param.Name))
 		if err != nil {
 			return nil, fmt.Errorf("error generating type for param (%s): %s",
 				param.Name, err)
@@ -314,7 +314,7 @@ func (state *State) GetResponseTypeDefinitions(o *OperationDefinition) ([]Respon
 				contentType := responseRef.Value.Content[contentTypeName]
 				// We can only generate a type if we have a schema:
 				if contentType.Schema != nil {
-					responseSchema, err := GenerateGoSchema(contentType.Schema, []string{o.OperationId, responseName})
+					responseSchema, err := state.GenerateGoSchema(contentType.Schema, []string{o.OperationId, responseName})
 					if err != nil {
 						return nil, fmt.Errorf("Unable to determine Go type for %s.%s: %w", o.OperationId, contentTypeName, err)
 					}
@@ -670,7 +670,7 @@ func (state *State) OperationDefinitions(swagger *openapi3.T, initialismOverride
 			}
 
 			// Generate all the type definitions needed for this operation
-			opDef.TypeDefinitions = append(opDef.TypeDefinitions, GenerateTypeDefsForOperation(opDef)...)
+			opDef.TypeDefinitions = append(opDef.TypeDefinitions, state.GenerateTypeDefsForOperation(opDef)...)
 
 			operations = append(operations, opDef)
 		}
@@ -743,7 +743,7 @@ func (state *State) GenerateBodyDefinitions(operationID string, bodyOrRef *opena
 		}
 
 		bodyTypeName := operationID + tag + "Body"
-		bodySchema, err := GenerateGoSchema(content.Schema, []string{bodyTypeName})
+		bodySchema, err := state.GenerateGoSchema(content.Schema, []string{bodyTypeName})
 		if err != nil {
 			return nil, nil, fmt.Errorf("error generating request body definition: %w", err)
 		}
@@ -770,7 +770,7 @@ func (state *State) GenerateBodyDefinitions(operationID string, bodyOrRef *opena
 				}
 
 				// Regenerate the Golang struct adding the new form tag.
-				bodySchema.GoType = GenStructFromSchema(bodySchema)
+				bodySchema.GoType = state.GenStructFromSchema(bodySchema)
 			}
 
 			td := TypeDefinition{
@@ -848,7 +848,7 @@ func (state *State) GenerateResponseDefinitions(operationID string, responses ma
 			}
 
 			responseTypeName := operationID + statusCode + tag + "Response"
-			contentSchema, err := GenerateGoSchema(content.Schema, []string{responseTypeName})
+			contentSchema, err := state.GenerateGoSchema(content.Schema, []string{responseTypeName})
 			if err != nil {
 				return nil, fmt.Errorf("error generating request body definition: %w", err)
 			}
@@ -865,7 +865,7 @@ func (state *State) GenerateResponseDefinitions(operationID string, responses ma
 		var responseHeaderDefinitions []ResponseHeaderDefinition
 		for _, headerName := range SortedMapKeys(response.Headers) {
 			header := response.Headers[headerName]
-			contentSchema, err := GenerateGoSchema(header.Value.Schema, []string{})
+			contentSchema, err := state.GenerateGoSchema(header.Value.Schema, []string{})
 			if err != nil {
 				return nil, fmt.Errorf("error generating response header definition: %w", err)
 			}
@@ -901,11 +901,16 @@ func (state *State) GenerateResponseDefinitions(operationID string, responses ma
 	return responseDefinitions, nil
 }
 
-func GenerateTypeDefsForOperation(op OperationDefinition) []TypeDefinition {
+// TODO: uncomment
+// func GenerateTypeDefsForOperation(op OperationDefinition) []TypeDefinition {
+// 	return globalState.GenerateTypeDefsForOperation(op)
+// }
+
+func (state *State) GenerateTypeDefsForOperation(op OperationDefinition) []TypeDefinition {
 	var typeDefs []TypeDefinition
 	// Start with the params object itself
 	if len(op.Params()) != 0 {
-		typeDefs = append(typeDefs, GenerateParamsTypes(op)...)
+		typeDefs = append(typeDefs, state.GenerateParamsTypes(op)...)
 	}
 
 	// Now, go through all the additional types we need to declare.
@@ -919,9 +924,16 @@ func GenerateTypeDefsForOperation(op OperationDefinition) []TypeDefinition {
 	return typeDefs
 }
 
+// TODO: uncomment
+// // GenerateParamsTypes defines the schema for a parameters definition object
+// // which encapsulates all the query, header and cookie parameters for an operation.
+// func GenerateParamsTypes(op OperationDefinition) []TypeDefinition {
+// 	return globalState.GenerateParamsTypes(op)
+// }
+
 // GenerateParamsTypes defines the schema for a parameters definition object
 // which encapsulates all the query, header and cookie parameters for an operation.
-func GenerateParamsTypes(op OperationDefinition) []TypeDefinition {
+func (state *State) GenerateParamsTypes(op OperationDefinition) []TypeDefinition {
 	var typeDefs []TypeDefinition
 
 	objectParams := op.QueryParams
@@ -954,7 +966,7 @@ func GenerateParamsTypes(op OperationDefinition) []TypeDefinition {
 	}
 
 	s.Description = op.Spec.Description
-	s.GoType = GenStructFromSchema(s)
+	s.GoType = state.GenStructFromSchema(s)
 
 	td := TypeDefinition{
 		TypeName: typeName,
