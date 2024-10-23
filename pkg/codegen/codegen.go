@@ -451,7 +451,7 @@ func (state *State) GenerateTypeDefinitions(t *template.Template, swagger *opena
 			return "", fmt.Errorf("error generating Go types for component schemas: %w", err)
 		}
 
-		paramTypes, err := state.generateTypesForParameters(t, swagger.Components.Parameters)
+		paramTypes, err := state.GenerateTypesForParameters(t, swagger.Components.Parameters)
 		if err != nil {
 			return "", fmt.Errorf("error generating Go types for component parameters: %w", err)
 		}
@@ -589,9 +589,9 @@ func (state *State) GenerateTypesForSchemas(t *template.Template, schemas map[st
 // 	return globalState.generateTypesForParameters(t, params)
 // }
 
-// generateTypesForParameters generates type definitions for any custom types defined in the
+// GenerateTypesForParameters generates type definitions for any custom types defined in the
 // components/parameters section of the Swagger spec.
-func (state *State) generateTypesForParameters(t *template.Template, params map[string]*openapi3.ParameterRef) ([]TypeDefinition, error) {
+func (state *State) GenerateTypesForParameters(t *template.Template, params map[string]*openapi3.ParameterRef) ([]TypeDefinition, error) {
 	var types []TypeDefinition
 	for _, paramName := range SortedMapKeys(params) {
 		paramOrRef := params[paramName]
@@ -1254,4 +1254,9 @@ func GetParametersImports(params map[string]*openapi3.ParameterRef) (map[string]
 
 func SetGlobalStateSpec(spec *openapi3.T) {
 	globalState.spec = spec
+}
+
+func SetGlobalStateOptions(opts Configuration) {
+	globalState.options = opts
+	globalState.importMapping = constructImportMapping(opts.ImportMapping)
 }
