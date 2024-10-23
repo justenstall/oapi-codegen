@@ -233,7 +233,6 @@ components:
 }
 
 func TestRefPathToGoType(t *testing.T) {
-	globalState := &State{}
 	old := globalState.importMapping
 	globalState.importMapping = constructImportMapping(
 		map[string]string{

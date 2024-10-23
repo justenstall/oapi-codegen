@@ -327,5 +327,6 @@ func (state *State) TemplateFunctions() template.FuncMap {
 		"stripNewLines":              stripNewLines,
 		"sanitizeGoIdentity":         SanitizeGoIdentity,
 		"toGoComment":                StringWithTypeNameToGoComment,
+		"isAlias":                    state.IsAlias,
 	}
 }
