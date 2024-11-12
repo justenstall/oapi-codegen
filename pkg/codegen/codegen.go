@@ -24,8 +24,10 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -43,9 +45,9 @@ var templates embed.FS
 
 // State defines code generation state.
 type State struct {
-	options       Configuration
-	spec          *openapi3.T
-	importMapping importMap
+	Options       Configuration
+	Spec          *openapi3.T
+	ImportMapping importMap
 }
 
 // globalState stores all global state. Please don't put global state anywhere
@@ -88,8 +90,9 @@ func (im importMap) GoImports() []string {
 
 func constructImportMapping(importMapping map[string]string) importMap {
 	var (
-		pathToName = map[string]string{}
-		result     = importMap{}
+		pathToName   = map[string]string{}
+		result       = importMap{}
+		claimedNames = map[string]bool{}
 	)
 
 	{
@@ -100,9 +103,29 @@ func constructImportMapping(importMapping map[string]string) importMap {
 		sort.Strings(packagePaths)
 
 		for _, packagePath := range packagePaths {
-			if _, ok := pathToName[packagePath]; !ok && packagePath != importMappingCurrentPackage {
-				pathToName[packagePath] = fmt.Sprintf("externalRef%d", len(pathToName))
+			// Skip current package.
+			if packagePath == importMappingCurrentPackage {
+				continue
 			}
+
+			// Use last element of package path as package name.
+			packageName := filepath.Base(packagePath)
+			// Check if name has been claimed.
+			if claimedNames[packageName] {
+				i := 1
+				for {
+					// If so, set to a unique value.
+					// Produces externalRef1, externalRef01, externalRef
+					packageName = fmt.Sprintf("externalRef%0"+strconv.Itoa(i)+"d", len(pathToName))
+					if !claimedNames[packageName] {
+						break
+					}
+					i++
+				}
+			}
+			//
+			pathToName[packagePath] = packageName
+			claimedNames[packageName] = true
 		}
 	}
 	for specPath, packagePath := range importMapping {
@@ -127,9 +150,9 @@ func Generate(spec *openapi3.T, opts Configuration) (string, error) {
 
 func NewGenerator(spec *openapi3.T, opts Configuration) *State {
 	return &State{
-		options:       opts,
-		spec:          spec,
-		importMapping: constructImportMapping(opts.ImportMapping),
+		Options:       opts,
+		Spec:          spec,
+		ImportMapping: constructImportMapping(opts.ImportMapping),
 	}
 }
 
@@ -137,8 +160,8 @@ func NewGenerator(spec *openapi3.T, opts Configuration) *State {
 // the descriptions we've built up above from the schema objects.
 // opts defines
 func (state *State) Generate(out io.Writer) error {
-	spec := state.spec
-	opts := state.options
+	spec := state.Spec
+	opts := state.Options
 
 	filterOperationsByTag(spec, opts)
 	filterOperationsByOperationID(spec, opts)
@@ -151,8 +174,8 @@ func (state *State) Generate(out io.Writer) error {
 		responseTypeSuffix = opts.OutputOptions.ResponseTypeSuffix
 	}
 
-	if state.options.OutputOptions.ClientTypeName == "" {
-		state.options.OutputOptions.ClientTypeName = defaultClientTypeName
+	if state.Options.OutputOptions.ClientTypeName == "" {
+		state.Options.OutputOptions.ClientTypeName = defaultClientTypeName
 	}
 
 	nameNormalizerFunction := NameNormalizerFunction(opts.OutputOptions.NameNormalizer)
@@ -165,7 +188,7 @@ func (state *State) Generate(out io.Writer) error {
 	templateFunctions := state.TemplateFunctions()
 
 	// This creates the golang templates text package
-	templateFunctions["opts"] = func() Configuration { return state.options }
+	templateFunctions["opts"] = func() Configuration { return state.Options }
 	t := template.New("oapi-codegen").Funcs(templateFunctions)
 	// This parses all of our own template files into the template object
 	// above
@@ -312,7 +335,7 @@ func (state *State) Generate(out io.Writer) error {
 
 	var inlinedSpec string
 	if opts.Generate.EmbeddedSpec {
-		inlinedSpec, err = GenerateInlinedSpec(t, state.importMapping, spec)
+		inlinedSpec, err = GenerateInlinedSpec(t, state.ImportMapping, spec)
 		if err != nil {
 			return fmt.Errorf("error generating Go handlers for Paths: %w", err)
 		}
@@ -321,7 +344,7 @@ func (state *State) Generate(out io.Writer) error {
 	buf := new(bytes.Buffer)
 	w := bufio.NewWriter(&sanitizeWriter{buf})
 
-	externalImports := append(state.importMapping.GoImports(), importMap(xGoTypeImports).GoImports()...)
+	externalImports := append(state.ImportMapping.GoImports(), importMap(xGoTypeImports).GoImports()...)
 	importsOut, err := state.GenerateImports(
 		t,
 		externalImports,
@@ -818,7 +841,7 @@ func (state *State) GenerateEnums(t *template.Template, types []TypeDefinition) 
 				Schema:         tp.Schema,
 				TypeName:       tp.TypeName,
 				ValueWrapper:   wrapper,
-				PrefixTypeName: state.options.Compatibility.AlwaysPrefixEnumValues,
+				PrefixTypeName: state.Options.Compatibility.AlwaysPrefixEnumValues,
 			})
 		}
 	}
@@ -908,7 +931,7 @@ func (state *State) GenerateImports(t *template.Template, externalImports []stri
 		PackageName:       packageName,
 		ModuleName:        modulePath,
 		Version:           moduleVersion,
-		AdditionalImports: state.options.AdditionalImports,
+		AdditionalImports: state.Options.AdditionalImports,
 	}
 
 	return GenerateTemplates([]string{"imports.tmpl"}, t, context)
@@ -1279,10 +1302,10 @@ func GetParametersImports(params map[string]*openapi3.ParameterRef) (map[string]
 }
 
 func SetGlobalStateSpec(spec *openapi3.T) {
-	globalState.spec = spec
+	globalState.Spec = spec
 }
 
 func SetGlobalStateOptions(opts Configuration) {
-	globalState.options = opts
-	globalState.importMapping = constructImportMapping(opts.ImportMapping)
+	globalState.Options = opts
+	globalState.ImportMapping = constructImportMapping(opts.ImportMapping)
 }

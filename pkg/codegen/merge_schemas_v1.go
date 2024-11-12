@@ -27,7 +27,7 @@ func (state *State) mergeSchemasV1(allOf []*openapi3.SchemaRef, path []string) (
 			return Schema{}, fmt.Errorf("error generating Go schema in allOf: %w", err)
 		}
 		schema.RefType = refType
-
+		// outSchema.RefType = refType
 		for _, p := range schema.Properties {
 			err = outSchema.AddProperty(p)
 			if err != nil {

@@ -20,7 +20,7 @@ import (
 func (state *State) MergeSchemas(allOf []*openapi3.SchemaRef, path []string) (Schema, error) {
 	// If someone asked for the old way, for backward compatibility, return the
 	// old style result.
-	if state.options.Compatibility.OldMergeSchemas {
+	if state.Options.Compatibility.OldMergeSchemas {
 		return state.mergeSchemasV1(allOf, path)
 	}
 	return state.mergeSchemas(allOf, path)
