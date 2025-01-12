@@ -29,9 +29,74 @@ import (
 )
 
 var (
-	pathParamRE    *regexp.Regexp
-	predeclaredSet map[string]struct{}
-	separatorSet   map[rune]struct{}
+	pathParamRE                        = regexp.MustCompile(`{[.;?]?([^{}*]+)\*?}`)
+	predeclaredSet map[string]struct{} = map[string]struct{}{
+		// Types
+		"bool":       {},
+		"byte":       {},
+		"complex64":  {},
+		"complex128": {},
+		"error":      {},
+		"float32":    {},
+		"float64":    {},
+		"int":        {},
+		"int8":       {},
+		"int16":      {},
+		"int32":      {},
+		"int64":      {},
+		"rune":       {},
+		"string":     {},
+		"uint":       {},
+		"uint8":      {},
+		"uint16":     {},
+		"uint32":     {},
+		"uint64":     {},
+		"uintptr":    {},
+		// Constants
+		"true":  {},
+		"false": {},
+		"iota":  {},
+		// Zero value
+		"nil": {},
+		// Functions
+		"append":  {},
+		"cap":     {},
+		"close":   {},
+		"complex": {},
+		"copy":    {},
+		"delete":  {},
+		"imag":    {},
+		"len":     {},
+		"make":    {},
+		"new":     {},
+		"panic":   {},
+		"print":   {},
+		"println": {},
+		"real":    {},
+		"recover": {},
+	}
+	separatorSet map[rune]struct{} = map[rune]struct{}{
+		'-': {},
+		'#': {},
+		'@': {},
+		'!': {},
+		'$': {},
+		'&': {},
+		'=': {},
+		'.': {},
+		'+': {},
+		':': {},
+		';': {},
+		'_': {},
+		'~': {},
+		' ': {},
+		'(': {},
+		')': {},
+		'{': {},
+		'}': {},
+		'[': {},
+		']': {},
+	}
 	nameNormalizer NameNormalizer = ToCamelCase
 )
 
@@ -94,66 +159,6 @@ var NameNormalizers = NameNormalizerMap{
 	NameNormalizerFunctionToCamelCase:                ToCamelCase,
 	NameNormalizerFunctionToCamelCaseWithDigits:      ToCamelCaseWithDigits,
 	NameNormalizerFunctionToCamelCaseWithInitialisms: ToCamelCaseWithInitialisms,
-}
-
-func init() {
-	pathParamRE = regexp.MustCompile(`{[.;?]?([^{}*]+)\*?}`)
-
-	predeclaredIdentifiers := []string{
-		// Types
-		"bool",
-		"byte",
-		"complex64",
-		"complex128",
-		"error",
-		"float32",
-		"float64",
-		"int",
-		"int8",
-		"int16",
-		"int32",
-		"int64",
-		"rune",
-		"string",
-		"uint",
-		"uint8",
-		"uint16",
-		"uint32",
-		"uint64",
-		"uintptr",
-		// Constants
-		"true",
-		"false",
-		"iota",
-		// Zero value
-		"nil",
-		// Functions
-		"append",
-		"cap",
-		"close",
-		"complex",
-		"copy",
-		"delete",
-		"imag",
-		"len",
-		"make",
-		"new",
-		"panic",
-		"print",
-		"println",
-		"real",
-		"recover",
-	}
-	predeclaredSet = map[string]struct{}{}
-	for _, id := range predeclaredIdentifiers {
-		predeclaredSet[id] = struct{}{}
-	}
-
-	separators := "-#@!$&=.+:;_~ (){}[]"
-	separatorSet = map[rune]struct{}{}
-	for _, r := range separators {
-		separatorSet[r] = struct{}{}
-	}
 }
 
 // UppercaseFirstCharacter Uppercases the first character in a string. This assumes UTF-8, so we have
