@@ -855,13 +855,7 @@ func (state *State) SchemaNameToTypeName(name string) string {
 // SchemaNameToTypeName converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
 // valid in Go
 func (nameNormalizer NameNormalizer) SchemaNameToTypeName(name string) string {
-	var nname string
-	if nameNormalizer != nil {
-		nname = nameNormalizer(name)
-	} else {
-		nname = ToCamelCase(name)
-	}
-	return typeNamePrefix(name) + nname
+	return typeNamePrefix(name) + nameNormalizer.Normalize(name)
 }
 
 // According to the spec, additionalProperties may be true, false, or a
@@ -891,14 +885,26 @@ func SchemaHasAdditionalProperties(schema *openapi3.Schema) bool {
 // PathToTypeName converts a path, like Object/field1/nestedField into a go
 // type name.
 func (state *State) PathToTypeName(path []string) string {
-	return pathToTypeName(path, state.nameNormalizer)
+	return state.nameNormalizer.PathToTypeName(path)
 }
 
-// pathToTypeName converts a path, like Object/field1/nestedField into a go
+// Normalize wraps the calling of the NameNormalizer to avoid panics.
+func (nameNormalizer NameNormalizer) Normalize(name string) string {
+	if nameNormalizer == nil {
+		return ToCamelCase(name)
+	}
+	return nameNormalizer(name)
+}
+
+// PathToTypeName converts a path, like Object/field1/nestedField into a go
 // type name.
-func pathToTypeName(path []string, nameNormalizer NameNormalizer) string {
+func (nameNormalizer NameNormalizer) PathToTypeName(path []string) string {
+	nn := nameNormalizer
+	if nn == nil {
+		nn = ToCamelCase
+	}
 	for i, p := range path {
-		path[i] = nameNormalizer(p)
+		path[i] = nn(p)
 	}
 	return strings.Join(path, "_")
 }
