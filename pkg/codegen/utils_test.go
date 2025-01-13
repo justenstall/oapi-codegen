@@ -233,8 +233,8 @@ components:
 }
 
 func TestRefPathToGoType(t *testing.T) {
-	old := globalState.importMapping
-	globalState.importMapping = constructImportMapping(
+	gen := &State{}
+	gen.importMapping = constructImportMapping(
 		map[string]string{
 			"doc.json":                    "externalref0",
 			"http://deepmap.com/doc.json": "externalref1",
@@ -242,7 +242,6 @@ func TestRefPathToGoType(t *testing.T) {
 			"dj-current-package.yml": "-",
 		},
 	)
-	defer func() { globalState.importMapping = old }()
 
 	tests := []struct {
 		name   string
@@ -305,7 +304,7 @@ func TestRefPathToGoType(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			goType, err := globalState.RefPathToGoType(tc.path)
+			goType, err := gen.RefPathToGoType(tc.path)
 			if tc.goType == "" {
 				assert.Error(t, err)
 				return
@@ -609,15 +608,19 @@ func TestSchemaNameToTypeName(t *testing.T) {
 		"<":            "LessThan",
 		">":            "GreaterThan",
 	} {
-		assert.Equal(t, want, SchemaNameToTypeName(in))
+		assert.Equal(t, want, NameNormalizer(ToCamelCase).SchemaNameToTypeName(in))
 	}
+
+	assert.NotPanics(t, func() {
+		NameNormalizer(nil).SchemaNameToTypeName("test")
+	})
 }
 
 func TestTypeDefinitionsEquivalent(t *testing.T) {
-	def1 := TypeDefinition{TypeName: "name", Schema: Schema{
+	def1 := TypeDefinition{TypeName: "name", state: &State{}, Schema: Schema{
 		OAPISchema: &openapi3.Schema{},
 	}}
-	def2 := TypeDefinition{TypeName: "name", Schema: Schema{
+	def2 := TypeDefinition{TypeName: "name", state: &State{}, Schema: Schema{
 		OAPISchema: &openapi3.Schema{},
 	}}
 	assert.True(t, TypeDefinitionsEquivalent(def1, def2))

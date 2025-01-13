@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -49,11 +50,15 @@ type State struct {
 	nameNormalizer NameNormalizer
 }
 
-// globalState stores all global state. Please don't put global state anywhere
-// else so that we can easily track it.
-var globalState State = State{
-	nameNormalizer: ToCamelCase, // set default nameNormalizer before any spec is parsed
-}
+var (
+	// globalState stores all global state. Please don't put global state anywhere
+	// else so that we can easily track it.
+	globalState State
+
+	// globalStateError stores any errors from producing the global state.
+	// TODO: where to surface this?
+	globalStateError error
+)
 
 // goImport represents a go package to be imported in the generated code
 type goImport struct {
@@ -114,6 +119,52 @@ func constructImportMapping(importMapping map[string]string) importMap {
 	return result
 }
 
+func NewGenerator(spec *openapi3.T, opts Configuration) (*State, error) {
+	var err error
+	s := &State{}
+	if err = s.SetSpec(spec); err != nil {
+		return nil, err
+	}
+	if err = s.SetOptions(opts); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (state *State) SetSpec(spec *openapi3.T) error {
+	if state == nil {
+		state = &State{}
+	}
+	state.spec = spec
+	return nil
+}
+
+func (state *State) SetOptions(opts Configuration) error {
+	if state == nil {
+		state = &State{}
+	}
+	var nn NameNormalizer
+	switch {
+	// Set with function
+	case opts.OutputOptions.NameNormalizerFunction != nil:
+		nn = opts.OutputOptions.NameNormalizerFunction
+	// Set by name
+	case opts.OutputOptions.NameNormalizer != "":
+		nn = NameNormalizers[NameNormalizerFunction(opts.OutputOptions.NameNormalizer)]
+		if nn == nil {
+			return fmt.Errorf(`the name-normalizer option %v could not be found among options %q`,
+				opts.OutputOptions.NameNormalizer, NameNormalizers.Options())
+		}
+	// Default to ToCamelCase function
+	default:
+		nn = ToCamelCase
+	}
+	state.options = opts
+	state.importMapping = constructImportMapping(opts.ImportMapping)
+	state.nameNormalizer = nn
+	return nil
+}
+
 // Generate uses the Go templating engine to generate all of our server wrappers from
 // the descriptions we've built up above from the schema objects.
 // opts defines
@@ -124,31 +175,6 @@ func Generate(spec *openapi3.T, opts Configuration) (string, error) {
 	}
 	globalState = *state
 	return globalState.Generate()
-}
-
-func NewGenerator(spec *openapi3.T, opts Configuration) (*State, error) {
-	var nn NameNormalizer
-	switch {
-	// Set with function
-	case opts.OutputOptions.NameNormalizerFunction != nil:
-		nn = opts.OutputOptions.NameNormalizerFunction
-	// Set by name
-	case opts.OutputOptions.NameNormalizer != "":
-		nn = NameNormalizers[NameNormalizerFunction(opts.OutputOptions.NameNormalizer)]
-		if nn == nil {
-			return nil, fmt.Errorf(`the name-normalizer option %v could not be found among options %q`,
-				opts.OutputOptions.NameNormalizer, NameNormalizers.Options())
-		}
-	// Default to ToCamelCase function
-	default:
-		nn = ToCamelCase
-	}
-	return &State{
-		options:        opts,
-		spec:           spec,
-		importMapping:  constructImportMapping(opts.ImportMapping),
-		nameNormalizer: nn,
-	}, nil
 }
 
 // Generate uses the Go templating engine to generate all of our server wrappers from
@@ -582,7 +608,7 @@ func (state *State) GenerateTypesForSchemas(t *template.Template, schemas map[st
 			return nil, fmt.Errorf("error converting Schema %s to Go type: %w", schemaName, err)
 		}
 
-		goTypeName, err := renameSchema(schemaName, schemaRef)
+		goTypeName, err := state.renameSchema(schemaName, schemaRef)
 		if err != nil {
 			return nil, fmt.Errorf("error making name for components/schemas/%s: %w", schemaName, err)
 		}
@@ -591,6 +617,7 @@ func (state *State) GenerateTypesForSchemas(t *template.Template, schemas map[st
 			JsonName: schemaName,
 			TypeName: goTypeName,
 			Schema:   goSchema,
+			state:    state,
 		})
 
 		types = append(types, goSchema.AdditionalTypes...)
@@ -617,7 +644,7 @@ func (state *State) GenerateTypesForParameters(t *template.Template, params map[
 			return nil, fmt.Errorf("error generating Go type for schema in parameter %s: %w", paramName, err)
 		}
 
-		goTypeName, err := renameParameter(paramName, paramOrRef)
+		goTypeName, err := state.renameParameter(paramName, paramOrRef)
 		if err != nil {
 			return nil, fmt.Errorf("error making name for components/parameters/%s: %w", paramName, err)
 		}
@@ -626,6 +653,7 @@ func (state *State) GenerateTypesForParameters(t *template.Template, params map[
 			JsonName: paramName,
 			Schema:   goType,
 			TypeName: goTypeName,
+			state:    state,
 		}
 
 		if paramOrRef.Ref != "" {
@@ -634,7 +662,7 @@ func (state *State) GenerateTypesForParameters(t *template.Template, params map[
 			if err != nil {
 				return nil, fmt.Errorf("error generating Go type for (%s) in parameter %s: %w", paramOrRef.Ref, paramName, err)
 			}
-			typeDef.TypeName = SchemaNameToTypeName(refType)
+			typeDef.TypeName = state.SchemaNameToTypeName(refType)
 		}
 
 		types = append(types, typeDef)
@@ -681,7 +709,7 @@ func (state *State) GenerateTypesForResponses(t *template.Template, responses op
 				return nil, fmt.Errorf("error generating Go type for schema in response %s: %w", responseName, err)
 			}
 
-			goTypeName, err := renameResponse(responseName, responseOrRef)
+			goTypeName, err := state.renameResponse(responseName, responseOrRef)
 			if err != nil {
 				return nil, fmt.Errorf("error making name for components/responses/%s: %w", responseName, err)
 			}
@@ -690,6 +718,7 @@ func (state *State) GenerateTypesForResponses(t *template.Template, responses op
 				JsonName: responseName,
 				Schema:   goType,
 				TypeName: goTypeName,
+				state:    state,
 			}
 
 			if responseOrRef.Ref != "" {
@@ -698,7 +727,7 @@ func (state *State) GenerateTypesForResponses(t *template.Template, responses op
 				if err != nil {
 					return nil, fmt.Errorf("error generating Go type for (%s) in parameter %s: %w", responseOrRef.Ref, responseName, err)
 				}
-				typeDef.TypeName = SchemaNameToTypeName(refType)
+				typeDef.TypeName = state.SchemaNameToTypeName(refType)
 			}
 
 			if jsonCount > 1 {
@@ -739,7 +768,7 @@ func (state *State) GenerateTypesForRequestBodies(t *template.Template, bodies m
 				return nil, fmt.Errorf("error generating Go type for schema in body %s: %w", requestBodyName, err)
 			}
 
-			goTypeName, err := renameRequestBody(requestBodyName, requestBodyRef)
+			goTypeName, err := state.renameRequestBody(requestBodyName, requestBodyRef)
 			if err != nil {
 				return nil, fmt.Errorf("error making name for components/schemas/%s: %w", requestBodyName, err)
 			}
@@ -748,6 +777,7 @@ func (state *State) GenerateTypesForRequestBodies(t *template.Template, bodies m
 				JsonName: requestBodyName,
 				Schema:   goType,
 				TypeName: goTypeName,
+				state:    state,
 			}
 
 			if requestBodyRef.Ref != "" {
@@ -756,7 +786,7 @@ func (state *State) GenerateTypesForRequestBodies(t *template.Template, bodies m
 				if err != nil {
 					return nil, fmt.Errorf("error generating Go type for (%s) in body %s: %w", requestBodyRef.Ref, requestBodyName, err)
 				}
-				typeDef.TypeName = SchemaNameToTypeName(refType)
+				typeDef.TypeName = state.SchemaNameToTypeName(refType)
 			}
 			types = append(types, typeDef)
 		}
@@ -1269,10 +1299,11 @@ func GetParametersImports(params map[string]*openapi3.ParameterRef) (map[string]
 }
 
 func SetGlobalStateSpec(spec *openapi3.T) {
-	globalState.spec = spec
+	globalStateError = errors.Join(globalStateError,
+		globalState.SetSpec(spec))
 }
 
 func SetGlobalStateOptions(opts Configuration) {
-	globalState.options = opts
-	globalState.importMapping = constructImportMapping(opts.ImportMapping)
+	globalStateError = errors.Join(globalStateError,
+		globalState.SetOptions(opts))
 }

@@ -90,14 +90,10 @@ type Property struct {
 	NeedsFormTag  bool
 	Extensions    map[string]interface{}
 	Deprecated    bool
+	state         *State // Parent state
 }
 
-// TODO: uncomment
-// func (p Property) GoFieldName() string {
-// 	return globalState.goFieldName(p)
-// }
-
-func (state *State) goFieldName(p Property) string {
+func (p Property) GoFieldName() string {
 	goFieldName := p.JsonFieldName
 	if extension, ok := p.Extensions[extGoName]; ok {
 		if extGoFieldName, err := extParseGoFieldName(extension); err == nil {
@@ -105,7 +101,7 @@ func (state *State) goFieldName(p Property) string {
 		}
 	}
 
-	if state.options.Compatibility.AllowUnexportedStructFieldNames {
+	if p.state.options.Compatibility.AllowUnexportedStructFieldNames {
 		if extension, ok := p.Extensions[extOapiCodegenOnlyHonourGoName]; ok {
 			if extOapiCodegenOnlyHonourGoName, err := extParseOapiCodegenOnlyHonourGoName(extension); err == nil {
 				if extOapiCodegenOnlyHonourGoName {
@@ -115,22 +111,17 @@ func (state *State) goFieldName(p Property) string {
 		}
 	}
 
-	return SchemaNameToTypeName(goFieldName)
+	return p.state.SchemaNameToTypeName(goFieldName)
 }
 
-// TODO: uncomment
-// func (p Property) GoTypeDef() string {
-// 	return globalState.goTypeDef(p)
-// }
-
-func (state *State) goTypeDef(p Property) string {
+func (p Property) GoTypeDef() string {
 	typeDef := p.Schema.TypeDecl()
-	if state.options.OutputOptions.NullableType && p.Nullable {
+	if p.state.options.OutputOptions.NullableType && p.Nullable {
 		return "nullable.Nullable[" + typeDef + "]"
 	}
 	if !p.Schema.SkipOptionalPointer &&
 		(!p.Required || p.Nullable ||
-			(p.ReadOnly && (!p.Required || !state.options.Compatibility.DisableRequiredReadOnlyAsPointer)) ||
+			(p.ReadOnly && (!p.Required || !p.state.options.Compatibility.DisableRequiredReadOnlyAsPointer)) ||
 			p.WriteOnly) {
 
 		typeDef = "*" + typeDef
@@ -198,6 +189,9 @@ type TypeDefinition struct {
 
 	// This is the Schema wrapper is used to populate the type description
 	Schema Schema
+
+	// Parent state
+	state *State
 }
 
 // ResponseTypeDefinition is an extension of TypeDefinition, specifically for
@@ -213,13 +207,13 @@ type ResponseTypeDefinition struct {
 	AdditionalTypeDefinitions []TypeDefinition
 }
 
-// TODO: uncomment
-// func (t *TypeDefinition) IsAlias() bool {
-// 	return globalState.IsAlias(t)
-// }
-
-func (state *State) IsAlias(t *TypeDefinition) bool {
-	return !state.options.Compatibility.OldAliasing && t.Schema.DefineViaAlias
+func (t *TypeDefinition) IsAlias() bool {
+	// if t.state != nil {
+	// 	// fmt.Println("State is NOT nil for TypeDefinition " + t.JsonName)
+	// }
+	return !t.state.options.Compatibility.OldAliasing && t.Schema.DefineViaAlias
+	// fmt.Println("State is nil for TypeDefinition " + t.JsonName)
+	// return t.Schema.DefineViaAlias
 }
 
 type Discriminator struct {
@@ -228,6 +222,9 @@ type Discriminator struct {
 
 	// JSON property name that holds the discriminator
 	Property string
+
+	// Parent state
+	state *State
 }
 
 func (d *Discriminator) JSONTag() string {
@@ -235,7 +232,7 @@ func (d *Discriminator) JSONTag() string {
 }
 
 func (d *Discriminator) PropertyName() string {
-	return SchemaNameToTypeName(d.Property)
+	return d.state.SchemaNameToTypeName(d.Property)
 }
 
 // UnionElement describe union element, based on prefix externalRef\d+ and real ref name from external schema.
@@ -379,12 +376,13 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 					// but are not a pre-defined type, we need to define a type
 					// for them, which will be based on the field names we followed
 					// to get to the type.
-					typeName := PathToTypeName(append(path, "AdditionalProperties"))
+					typeName := state.PathToTypeName(append(path, "AdditionalProperties"))
 
 					typeDef := TypeDefinition{
 						TypeName: typeName,
 						JsonName: strings.Join(append(path, "AdditionalProperties"), "."),
 						Schema:   additionalSchema,
+						state:    state,
 					}
 					additionalSchema.RefType = typeName
 					additionalSchema.AdditionalTypes = append(additionalSchema.AdditionalTypes, typeDef)
@@ -424,12 +422,13 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 					// but are not a pre-defined type, we need to define a type
 					// for them, which will be based on the field names we followed
 					// to get to the type.
-					typeName := PathToTypeName(propertyPath)
+					typeName := state.PathToTypeName(propertyPath)
 
 					typeDef := TypeDefinition{
 						TypeName: typeName,
 						JsonName: strings.Join(propertyPath, "."),
 						Schema:   pSchema,
+						state:    state,
 					}
 					pSchema.AdditionalTypes = append(pSchema.AdditionalTypes, typeDef)
 
@@ -449,6 +448,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 					WriteOnly:     p.Value.WriteOnly,
 					Extensions:    p.Value.Extensions,
 					Deprecated:    p.Value.Deprecated,
+					state:         state,
 				}
 				outSchema.Properties = append(outSchema.Properties, prop)
 				if len(pSchema.AdditionalTypes) > 0 {
@@ -482,6 +482,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 			newTypeDef := TypeDefinition{
 				TypeName: typeName,
 				Schema:   outSchema,
+				state:    state,
 			}
 			outSchema = Schema{
 				Description:     newTypeDef.Schema.Description,
@@ -517,7 +518,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 			}
 		}
 
-		sanitizedValues := SanitizeEnumNames(enumNames, enumValues)
+		sanitizedValues := state.SanitizeEnumNames(enumNames, enumValues)
 		outSchema.EnumValues = make(map[string]string, len(sanitizedValues))
 
 		for k, v := range sanitizedValues {
@@ -528,9 +529,9 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 				enumName = k
 			}
 			if state.options.Compatibility.OldEnumConflicts {
-				outSchema.EnumValues[SchemaNameToTypeName(PathToTypeName(append(path, enumName)))] = v
+				outSchema.EnumValues[state.SchemaNameToTypeName(state.PathToTypeName(append(path, enumName)))] = v
 			} else {
-				outSchema.EnumValues[SchemaNameToTypeName(k)] = v
+				outSchema.EnumValues[state.SchemaNameToTypeName(k)] = v
 			}
 		}
 		if len(path) > 1 { // handle additional type only on non-toplevel types
@@ -543,13 +544,14 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 					return outSchema, fmt.Errorf("invalid value for %q: %w", extGoTypeName, err)
 				}
 			} else {
-				typeName = SchemaNameToTypeName(PathToTypeName(path))
+				typeName = state.SchemaNameToTypeName(state.PathToTypeName(path))
 			}
 
 			typeDef := TypeDefinition{
 				TypeName: typeName,
 				JsonName: strings.Join(path, "."),
 				Schema:   outSchema,
+				state:    state,
 			}
 			outSchema.AdditionalTypes = append(outSchema.AdditionalTypes, typeDef)
 			outSchema.RefType = typeName
@@ -581,12 +583,13 @@ func (state *State) oapiSchemaToGoType(schema *openapi3.Schema, path []string, o
 			// but are not a pre-defined type, we need to define a type
 			// for them, which will be based on the field names we followed
 			// to get to the type.
-			typeName := PathToTypeName(append(path, "Item"))
+			typeName := state.PathToTypeName(append(path, "Item"))
 
 			typeDef := TypeDefinition{
 				TypeName: typeName,
 				JsonName: strings.Join(append(path, "Item"), "."),
 				Schema:   arrayType,
+				state:    state,
 			}
 			arrayType.AdditionalTypes = append(arrayType.AdditionalTypes, typeDef)
 
@@ -701,7 +704,7 @@ func (state *State) GenFieldsFromProperties(props []Property) []string {
 	for i, p := range props {
 		field := ""
 
-		goFieldName := state.goFieldName(p)
+		goFieldName := p.GoFieldName()
 
 		// Add a comment to a field in case we have one, otherwise skip.
 		if p.Description != "" {
@@ -710,7 +713,7 @@ func (state *State) GenFieldsFromProperties(props []Property) []string {
 			if i != 0 {
 				field += "\n"
 			}
-			field += fmt.Sprintf("%s\n", StringWithTypeNameToGoComment(p.Description, state.goFieldName(p)))
+			field += fmt.Sprintf("%s\n", StringWithTypeNameToGoComment(p.Description, goFieldName))
 		}
 
 		if p.Deprecated {
@@ -733,7 +736,7 @@ func (state *State) GenFieldsFromProperties(props []Property) []string {
 			}
 		}
 
-		field += fmt.Sprintf("    %s %s", goFieldName, state.goTypeDef(p))
+		field += fmt.Sprintf("    %s %s", goFieldName, p.GoTypeDef())
 
 		shouldOmitEmpty := (!p.Required || p.ReadOnly || p.WriteOnly) &&
 			(!p.Required || !p.ReadOnly || !state.options.Compatibility.DisableRequiredReadOnlyAsPointer)
@@ -868,6 +871,7 @@ func (state *State) generateUnion(outSchema *Schema, elements openapi3.SchemaRef
 		outSchema.Discriminator = &Discriminator{
 			Property: discriminator.PropertyName,
 			Mapping:  make(map[string]string),
+			state:    state,
 		}
 	}
 
@@ -880,11 +884,11 @@ func (state *State) generateUnion(outSchema *Schema, elements openapi3.SchemaRef
 		}
 
 		if element.Ref == "" {
-			elementName := SchemaNameToTypeName(PathToTypeName(elementPath))
+			elementName := state.SchemaNameToTypeName(state.PathToTypeName(elementPath))
 			if elementSchema.TypeDecl() == elementName {
 				elementSchema.GoType = elementName
 			} else {
-				td := TypeDefinition{Schema: elementSchema, TypeName: elementName}
+				td := TypeDefinition{Schema: elementSchema, TypeName: elementName, state: state}
 				outSchema.AdditionalTypes = append(outSchema.AdditionalTypes, td)
 				elementSchema.GoType = td.TypeName
 			}

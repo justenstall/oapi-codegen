@@ -34,6 +34,7 @@ type ParameterDefinition struct {
 	Required  bool   // Is this a required parameter?
 	Spec      *openapi3.Parameter
 	Schema    Schema
+	state     *State // parent state
 }
 
 // TypeDef is here as an adapter after a large refactoring so that I don't
@@ -132,7 +133,7 @@ func (pd ParameterDefinition) GoName() string {
 			goName = extGoFieldName
 		}
 	}
-	return SchemaNameToTypeName(goName)
+	return pd.state.SchemaNameToTypeName(goName)
 }
 
 func (pd ParameterDefinition) IndirectOptional() bool {
@@ -178,6 +179,7 @@ func (state *State) DescribeParameters(params openapi3.Parameters, path []string
 			Required:  param.Required,
 			Spec:      param,
 			Schema:    goType,
+			state:     state,
 		}
 
 		// If this is a reference to a predefined type, simply use the reference
@@ -231,6 +233,7 @@ type OperationDefinition struct {
 	Method              string                  // GET, POST, DELETE, etc.
 	Path                string                  // The Swagger path for the operation, like /resource/{id}
 	Spec                *openapi3.Operation
+	state               *State // Parent state
 }
 
 // Params returns the list of all parameters except Path parameters. Path parameters
@@ -276,20 +279,11 @@ func (o *OperationDefinition) SummaryAsComment() string {
 	return strings.Join(parts, "\n")
 }
 
-// TODO: uncomment
-// // GetResponseTypeDefinitions produces a list of type definitions for a given Operation for the response
-// // types which we know how to parse. These will be turned into fields on a
-// // response object for automatic deserialization of responses in the generated
-// // Client code. See "client-with-responses.tmpl".
-// func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefinition, error) {
-// 	return globalState.GetResponseTypeDefinitions(o)
-// }
-
 // GetResponseTypeDefinitions produces a list of type definitions for a given Operation for the response
 // types which we know how to parse. These will be turned into fields on a
 // response object for automatic deserialization of responses in the generated
 // Client code. See "client-with-responses.tmpl".
-func (state *State) GetResponseTypeDefinitions(o *OperationDefinition) ([]ResponseTypeDefinition, error) {
+func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefinition, error) {
 	var tds []ResponseTypeDefinition
 
 	if o.Spec == nil || o.Spec.Responses == nil {
@@ -314,7 +308,7 @@ func (state *State) GetResponseTypeDefinitions(o *OperationDefinition) ([]Respon
 				contentType := responseRef.Value.Content[contentTypeName]
 				// We can only generate a type if we have a schema:
 				if contentType.Schema != nil {
-					responseSchema, err := state.GenerateGoSchema(contentType.Schema, []string{o.OperationId, responseName})
+					responseSchema, err := o.state.GenerateGoSchema(contentType.Schema, []string{o.OperationId, responseName})
 					if err != nil {
 						return nil, fmt.Errorf("Unable to determine Go type for %s.%s: %w", o.OperationId, contentTypeName, err)
 					}
@@ -324,21 +318,21 @@ func (state *State) GetResponseTypeDefinitions(o *OperationDefinition) ([]Respon
 
 					// HAL+JSON:
 					case StringInArray(contentTypeName, contentTypesHalJSON):
-						typeName = fmt.Sprintf("HALJSON%s", state.nameNormalizer(responseName))
+						typeName = fmt.Sprintf("HALJSON%s", o.state.nameNormalizer(responseName))
 					case "application/json" == contentTypeName:
 						// if it's the standard application/json
-						typeName = fmt.Sprintf("JSON%s", state.nameNormalizer(responseName))
+						typeName = fmt.Sprintf("JSON%s", o.state.nameNormalizer(responseName))
 					// Vendored JSON
 					case StringInArray(contentTypeName, contentTypesJSON) || util.IsMediaTypeJson(contentTypeName):
-						baseTypeName := fmt.Sprintf("%s%s", state.nameNormalizer(contentTypeName), state.nameNormalizer(responseName))
+						baseTypeName := fmt.Sprintf("%s%s", o.state.nameNormalizer(contentTypeName), o.state.nameNormalizer(responseName))
 
 						typeName = strings.ReplaceAll(baseTypeName, "Json", "JSON")
 					// YAML:
 					case StringInArray(contentTypeName, contentTypesYAML):
-						typeName = fmt.Sprintf("YAML%s", state.nameNormalizer(responseName))
+						typeName = fmt.Sprintf("YAML%s", o.state.nameNormalizer(responseName))
 					// XML:
 					case StringInArray(contentTypeName, contentTypesXML):
-						typeName = fmt.Sprintf("XML%s", state.nameNormalizer(responseName))
+						typeName = fmt.Sprintf("XML%s", o.state.nameNormalizer(responseName))
 					default:
 						continue
 					}
@@ -347,13 +341,14 @@ func (state *State) GetResponseTypeDefinitions(o *OperationDefinition) ([]Respon
 						TypeDefinition: TypeDefinition{
 							TypeName: typeName,
 							Schema:   responseSchema,
+							state:    o.state,
 						},
 						ResponseName:              responseName,
 						ContentTypeName:           contentTypeName,
 						AdditionalTypeDefinitions: responseSchema.GetAdditionalTypeDefs(),
 					}
 					if IsGoTypeReference(responseRef.Ref) {
-						refType, err := state.RefPathToGoType(responseRef.Ref)
+						refType, err := o.state.RefPathToGoType(responseRef.Ref)
 						if err != nil {
 							return nil, fmt.Errorf("error dereferencing response Ref: %w", err)
 						}
@@ -400,6 +395,9 @@ type RequestBodyDefinition struct {
 
 	// Contains encoding options for formdata
 	Encoding map[string]RequestBodyEncoding
+
+	// Parent state
+	state *State
 }
 
 // TypeDef returns the Go type definition for a request body
@@ -407,6 +405,7 @@ func (r RequestBodyDefinition) TypeDef(opID string) *TypeDefinition {
 	return &TypeDefinition{
 		TypeName: fmt.Sprintf("%s%sRequestBody", opID, r.NameTag),
 		Schema:   r.Schema,
+		state:    r.state,
 	}
 }
 
@@ -463,6 +462,7 @@ type ResponseDefinition struct {
 	Contents    []ResponseContentDefinition
 	Headers     []ResponseHeaderDefinition
 	Ref         string
+	state       *State // Parent state
 }
 
 func (r ResponseDefinition) HasFixedStatusCode() bool {
@@ -471,7 +471,7 @@ func (r ResponseDefinition) HasFixedStatusCode() bool {
 }
 
 func (r ResponseDefinition) GoName() string {
-	return SchemaNameToTypeName(r.StatusCode)
+	return r.state.SchemaNameToTypeName(r.StatusCode)
 }
 
 func (r ResponseDefinition) IsRef() bool {
@@ -495,6 +495,9 @@ type ResponseContentDefinition struct {
 	// When we generate type names, we need a Tag for it, such as JSON, in
 	// which case we will produce "Response200JSONContent".
 	NameTag string
+
+	// Parent state
+	state *State
 }
 
 // TypeDef returns the Go type definition for a request body
@@ -502,6 +505,7 @@ func (r ResponseContentDefinition) TypeDef(opID string, statusCode int) *TypeDef
 	return &TypeDefinition{
 		TypeName: fmt.Sprintf("%s%v%sResponse", opID, statusCode, r.NameTagOrContentType()),
 		Schema:   r.Schema,
+		state:    r.state,
 	}
 }
 
@@ -518,7 +522,7 @@ func (r ResponseContentDefinition) NameTagOrContentType() string {
 	if r.NameTag != "" {
 		return r.NameTag
 	}
-	return SchemaNameToTypeName(r.ContentType)
+	return r.state.SchemaNameToTypeName(r.ContentType)
 }
 
 // IsJSON returns whether this is a JSON media type, for instance:
@@ -650,6 +654,7 @@ func (state *State) OperationDefinitions(swagger *openapi3.T, initialismOverride
 				Bodies:          bodyDefinitions,
 				Responses:       responseDefinitions,
 				TypeDefinitions: typeDefinitions,
+				state:           state,
 			}
 
 			// check for overrides of SecurityDefinitions.
@@ -678,7 +683,7 @@ func (state *State) OperationDefinitions(swagger *openapi3.T, initialismOverride
 	return operations, nil
 }
 
-func generateDefaultOperationID(opName string, requestPath string, nameNormalizer func(string) string) (string, error) {
+func generateDefaultOperationID(opName string, requestPath string, toCamelCaseFunc func(string) string) (string, error) {
 	operationId := strings.ToLower(opName)
 
 	if opName == "" {
@@ -695,7 +700,7 @@ func generateDefaultOperationID(opName string, requestPath string, nameNormalize
 		}
 	}
 
-	return nameNormalizer(operationId), nil
+	return toCamelCaseFunc(operationId), nil
 }
 
 // TODO: uncomment
@@ -737,6 +742,7 @@ func (state *State) GenerateBodyDefinitions(operationID string, bodyOrRef *opena
 			bd := RequestBodyDefinition{
 				Required:    body.Required,
 				ContentType: contentType,
+				state:       state,
 			}
 			bodyDefinitions = append(bodyDefinitions, bd)
 			continue
@@ -776,6 +782,7 @@ func (state *State) GenerateBodyDefinitions(operationID string, bodyOrRef *opena
 			td := TypeDefinition{
 				TypeName: bodyTypeName,
 				Schema:   bodySchema,
+				state:    state,
 			}
 			typeDefinitions = append(typeDefinitions, td)
 			// The body schema now is a reference to a type
@@ -788,6 +795,7 @@ func (state *State) GenerateBodyDefinitions(operationID string, bodyOrRef *opena
 			NameTag:     tag,
 			ContentType: contentType,
 			Default:     defaultBody,
+			state:       state,
 		}
 
 		if len(content.Encoding) != 0 {
@@ -842,6 +850,7 @@ func (state *State) GenerateResponseDefinitions(operationID string, responses ma
 			default:
 				rcd := ResponseContentDefinition{
 					ContentType: contentType,
+					state:       state,
 				}
 				responseContentDefinitions = append(responseContentDefinitions, rcd)
 				continue
@@ -857,6 +866,7 @@ func (state *State) GenerateResponseDefinitions(operationID string, responses ma
 				ContentType: contentType,
 				NameTag:     tag,
 				Schema:      contentSchema,
+				state:       state,
 			}
 
 			responseContentDefinitions = append(responseContentDefinitions, rcd)
@@ -869,7 +879,7 @@ func (state *State) GenerateResponseDefinitions(operationID string, responses ma
 			if err != nil {
 				return nil, fmt.Errorf("error generating response header definition: %w", err)
 			}
-			headerDefinition := ResponseHeaderDefinition{Name: headerName, GoName: SchemaNameToTypeName(headerName), Schema: contentSchema}
+			headerDefinition := ResponseHeaderDefinition{Name: headerName, GoName: state.SchemaNameToTypeName(headerName), Schema: contentSchema}
 			responseHeaderDefinitions = append(responseHeaderDefinitions, headerDefinition)
 		}
 
@@ -877,6 +887,7 @@ func (state *State) GenerateResponseDefinitions(operationID string, responses ma
 			StatusCode: statusCode,
 			Contents:   responseContentDefinitions,
 			Headers:    responseHeaderDefinitions,
+			state:      state,
 		}
 		if response.Description != nil {
 			rd.Description = *response.Description
@@ -952,6 +963,7 @@ func (state *State) GenerateParamsTypes(op OperationDefinition) []TypeDefinition
 			typeDefs = append(typeDefs, TypeDefinition{
 				TypeName: propRefName,
 				Schema:   param.Schema,
+				state:    state,
 			})
 		}
 		prop := Property{
@@ -961,6 +973,7 @@ func (state *State) GenerateParamsTypes(op OperationDefinition) []TypeDefinition
 			Schema:        pSchema,
 			NeedsFormTag:  param.Style() == "form",
 			Extensions:    param.Spec.Extensions,
+			state:         state,
 		}
 		s.Properties = append(s.Properties, prop)
 	}
@@ -971,6 +984,7 @@ func (state *State) GenerateParamsTypes(op OperationDefinition) []TypeDefinition
 	td := TypeDefinition{
 		TypeName: typeName,
 		Schema:   s,
+		state:    state,
 	}
 	return append(typeDefs, td)
 }

@@ -103,12 +103,12 @@ func genResponsePayload(operationID string) string {
 }
 
 // genResponseUnmarshal generates unmarshaling steps for structured response payloads
-func (state *State) genResponseUnmarshal(op *OperationDefinition) string {
+func genResponseUnmarshal(op *OperationDefinition) string {
 	handledCaseClauses := make(map[string]string)
 	unhandledCaseClauses := make(map[string]string)
 
 	// Get the type definitions from the operation:
-	typeDefinitions, err := state.GetResponseTypeDefinitions(op)
+	typeDefinitions, err := op.GetResponseTypeDefinitions()
 	if err != nil {
 		panic(err)
 	}
@@ -259,8 +259,8 @@ func genResponseTypeName(operationID string) string {
 	return fmt.Sprintf("%s%s", UppercaseFirstCharacter(operationID), responseTypeSuffix)
 }
 
-func (state *State) getResponseTypeDefinitions(op *OperationDefinition) []ResponseTypeDefinition {
-	td, err := state.GetResponseTypeDefinitions(op)
+func getResponseTypeDefinitions(op *OperationDefinition) []ResponseTypeDefinition {
+	td, err := op.GetResponseTypeDefinitions()
 	if err != nil {
 		panic(err)
 	}
@@ -319,14 +319,13 @@ func (state *State) TemplateFunctions() template.FuncMap {
 		"camelCase":                  ToCamelCase,
 		"genResponsePayload":         genResponsePayload,
 		"genResponseTypeName":        genResponseTypeName,
-		"genResponseUnmarshal":       state.genResponseUnmarshal,
-		"getResponseTypeDefinitions": state.getResponseTypeDefinitions,
+		"genResponseUnmarshal":       genResponseUnmarshal,
+		"getResponseTypeDefinitions": getResponseTypeDefinitions,
 		"toStringArray":              toStringArray,
 		"lower":                      strings.ToLower,
 		"title":                      titleCaser.String,
 		"stripNewLines":              stripNewLines,
 		"sanitizeGoIdentity":         SanitizeGoIdentity,
 		"toGoComment":                StringWithTypeNameToGoComment,
-		"isAlias":                    state.IsAlias,
 	}
 }

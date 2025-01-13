@@ -97,7 +97,6 @@ var (
 		'[': {},
 		']': {},
 	}
-	// nameNormalizer NameNormalizer = ToCamelCase
 )
 
 type NameNormalizerFunction string
@@ -491,7 +490,7 @@ func (state *State) refPathToGoTypeSelf(refPath string, local bool) (string, err
 
 	// Schemas may have been renamed locally, so look up the actual name in
 	// the spec.
-	name, err := findSchemaNameByRefPath(refPath, state.spec)
+	name, err := state.findSchemaNameByRefPath(refPath, state.spec)
 	if err != nil {
 		return "", fmt.Errorf("error finding ref: %s in spec: %v", refPath, err)
 	}
@@ -501,7 +500,7 @@ func (state *State) refPathToGoTypeSelf(refPath string, local bool) (string, err
 	// lastPart now stores the final element of the type path. This is what
 	// we use as the base for a type name.
 	lastPart := pathParts[len(pathParts)-1]
-	return SchemaNameToTypeName(lastPart), nil
+	return state.SchemaNameToTypeName(lastPart), nil
 }
 
 func (state *State) refPathToGoTypeRemote(flatComponent string, goPkg goImport) (string, error) {
@@ -750,9 +749,14 @@ func SanitizeGoIdentity(str string) string {
 	return str
 }
 
+// TODO: uncomment
+// // SanitizeEnumNames fixes illegal chars in the enum names
+// // and removes duplicates
+// func SanitizeEnumNames(enumNames, enumValues []string) map[string]string {}
+
 // SanitizeEnumNames fixes illegal chars in the enum names
 // and removes duplicates
-func SanitizeEnumNames(enumNames, enumValues []string) map[string]string {
+func (state *State) SanitizeEnumNames(enumNames, enumValues []string) map[string]string {
 	dupCheck := make(map[string]int, len(enumValues))
 	deDup := make([][]string, 0, len(enumValues))
 
@@ -772,7 +776,7 @@ func SanitizeEnumNames(enumNames, enumValues []string) map[string]string {
 
 	for _, p := range deDup {
 		n, v := p[0], p[1]
-		sanitized := SanitizeGoIdentity(SchemaNameToTypeName(n))
+		sanitized := SanitizeGoIdentity(state.SchemaNameToTypeName(n))
 
 		if _, dup := dupCheck[sanitized]; !dup {
 			sanitizedDeDup[sanitized] = v
@@ -835,16 +839,29 @@ func typeNamePrefix(name string) (prefix string) {
 	return
 }
 
+// TODO: uncomment
+// // SchemaNameToTypeName converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
+// // valid in Go
+// func SchemaNameToTypeName(name string) string {
+// 	return schemaNameToTypeName(name, globalState.nameNormalizer)
+// }
+
 // SchemaNameToTypeName converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
 // valid in Go
-func SchemaNameToTypeName(name string) string {
-	return schemaNameToTypeName(name, globalState.nameNormalizer)
+func (state *State) SchemaNameToTypeName(name string) string {
+	return state.nameNormalizer.SchemaNameToTypeName(name)
 }
 
-// schemaNameToTypeName converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
+// SchemaNameToTypeName converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
 // valid in Go
-func schemaNameToTypeName(name string, nameNormalizer NameNormalizer) string {
-	return typeNamePrefix(name) + nameNormalizer(name)
+func (nameNormalizer NameNormalizer) SchemaNameToTypeName(name string) string {
+	var nname string
+	if nameNormalizer != nil {
+		nname = nameNormalizer(name)
+	} else {
+		nname = ToCamelCase(name)
+	}
+	return typeNamePrefix(name) + nname
 }
 
 // According to the spec, additionalProperties may be true, false, or a
@@ -864,10 +881,17 @@ func SchemaHasAdditionalProperties(schema *openapi3.Schema) bool {
 	return false
 }
 
+// TODO: uncomment
+// // PathToTypeName converts a path, like Object/field1/nestedField into a go
+// // type name.
+// func PathToTypeName(path []string) string {
+// 	return globalState.PathToTypeName(path)
+// }
+
 // PathToTypeName converts a path, like Object/field1/nestedField into a go
 // type name.
-func PathToTypeName(path []string) string {
-	return pathToTypeName(path, globalState.nameNormalizer)
+func (state *State) PathToTypeName(path []string) string {
+	return pathToTypeName(path, state.nameNormalizer)
 }
 
 // pathToTypeName converts a path, like Object/field1/nestedField into a go
@@ -945,10 +969,10 @@ func EscapePathElements(path string) string {
 // and the definition of the schema. If the schema overrides the name via
 // x-go-name, the new name is returned, otherwise, the original name is
 // returned.
-func renameSchema(schemaName string, schemaRef *openapi3.SchemaRef) (string, error) {
+func (state *State) renameSchema(schemaName string, schemaRef *openapi3.SchemaRef) (string, error) {
 	// References will not change type names.
 	if schemaRef.Ref != "" {
-		return SchemaNameToTypeName(schemaName), nil
+		return state.SchemaNameToTypeName(schemaName), nil
 	}
 	schema := schemaRef.Value
 
@@ -959,14 +983,14 @@ func renameSchema(schemaName string, schemaRef *openapi3.SchemaRef) (string, err
 		}
 		return typeName, nil
 	}
-	return SchemaNameToTypeName(schemaName), nil
+	return state.SchemaNameToTypeName(schemaName), nil
 }
 
 // renameParameter generates the name for a parameter, taking x-go-name into
 // account
-func renameParameter(parameterName string, parameterRef *openapi3.ParameterRef) (string, error) {
+func (state *State) renameParameter(parameterName string, parameterRef *openapi3.ParameterRef) (string, error) {
 	if parameterRef.Ref != "" {
-		return SchemaNameToTypeName(parameterName), nil
+		return state.SchemaNameToTypeName(parameterName), nil
 	}
 	parameter := parameterRef.Value
 
@@ -977,14 +1001,14 @@ func renameParameter(parameterName string, parameterRef *openapi3.ParameterRef) 
 		}
 		return typeName, nil
 	}
-	return SchemaNameToTypeName(parameterName), nil
+	return state.SchemaNameToTypeName(parameterName), nil
 }
 
 // renameResponse generates the name for a parameter, taking x-go-name into
 // account
-func renameResponse(responseName string, responseRef *openapi3.ResponseRef) (string, error) {
+func (state *State) renameResponse(responseName string, responseRef *openapi3.ResponseRef) (string, error) {
 	if responseRef.Ref != "" {
-		return SchemaNameToTypeName(responseName), nil
+		return state.SchemaNameToTypeName(responseName), nil
 	}
 	response := responseRef.Value
 
@@ -995,14 +1019,14 @@ func renameResponse(responseName string, responseRef *openapi3.ResponseRef) (str
 		}
 		return typeName, nil
 	}
-	return SchemaNameToTypeName(responseName), nil
+	return state.SchemaNameToTypeName(responseName), nil
 }
 
 // renameRequestBody generates the name for a parameter, taking x-go-name into
 // account
-func renameRequestBody(requestBodyName string, requestBodyRef *openapi3.RequestBodyRef) (string, error) {
+func (state *State) renameRequestBody(requestBodyName string, requestBodyRef *openapi3.RequestBodyRef) (string, error) {
 	if requestBodyRef.Ref != "" {
-		return SchemaNameToTypeName(requestBodyName), nil
+		return state.SchemaNameToTypeName(requestBodyName), nil
 	}
 	requestBody := requestBodyRef.Value
 
@@ -1013,13 +1037,13 @@ func renameRequestBody(requestBodyName string, requestBodyRef *openapi3.RequestB
 		}
 		return typeName, nil
 	}
-	return SchemaNameToTypeName(requestBodyName), nil
+	return state.SchemaNameToTypeName(requestBodyName), nil
 }
 
 // findSchemaByRefPath turns a $ref path into a schema. This will return ""
 // if the schema wasn't found, and it'll only work successfully for schemas
 // defined within the spec that we parsed.
-func findSchemaNameByRefPath(refPath string, spec *openapi3.T) (string, error) {
+func (state *State) findSchemaNameByRefPath(refPath string, spec *openapi3.T) (string, error) {
 	if spec == nil || spec.Components == nil {
 		return "", nil
 	}
@@ -1041,19 +1065,19 @@ func findSchemaNameByRefPath(refPath string, spec *openapi3.T) (string, error) {
 	switch pathElements[2] {
 	case "schemas":
 		if schema, found := spec.Components.Schemas[propertyName]; found {
-			return renameSchema(propertyName, schema)
+			return state.renameSchema(propertyName, schema)
 		}
 	case "parameters":
 		if parameter, found := spec.Components.Parameters[propertyName]; found {
-			return renameParameter(propertyName, parameter)
+			return state.renameParameter(propertyName, parameter)
 		}
 	case "responses":
 		if response, found := spec.Components.Responses[propertyName]; found {
-			return renameResponse(propertyName, response)
+			return state.renameResponse(propertyName, response)
 		}
 	case "requestBodies":
 		if requestBody, found := spec.Components.RequestBodies[propertyName]; found {
-			return renameRequestBody(propertyName, requestBody)
+			return state.renameRequestBody(propertyName, requestBody)
 		}
 	}
 	return "", nil

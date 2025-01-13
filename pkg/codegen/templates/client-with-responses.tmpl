@@ -55,7 +55,7 @@ type {{genResponseTypeName $opid | ucFirst}} struct {
 
 {{- range $responseTypeDefinitions}}
   {{- range .AdditionalTypeDefinitions}}
-    type {{.TypeName}} {{if isAlias . }}={{end}} {{.Schema.TypeDecl}}
+    type {{.TypeName}} {{if .IsAlias }}={{end}} {{.Schema.TypeDecl}}
   {{- end}}
 {{- end}}
 

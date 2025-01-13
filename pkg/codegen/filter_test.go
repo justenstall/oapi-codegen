@@ -121,7 +121,10 @@ func TestFilterOperationsByOperationID(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Run our code generation:
-		code, err := Generate(swagger, opts)
+		gen, err := NewGenerator(swagger, opts)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, gen)
+		code, err := gen.Generate()
 		assert.NoError(t, err)
 		assert.NotEmpty(t, code)
 		assert.Contains(t, code, `"/test/:name"`)
