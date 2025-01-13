@@ -24,8 +24,10 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -86,8 +88,9 @@ func (im importMap) GoImports() []string {
 
 func constructImportMapping(importMapping map[string]string) importMap {
 	var (
-		pathToName = map[string]string{}
-		result     = importMap{}
+		pathToName   = map[string]string{}
+		result       = importMap{}
+		claimedNames = map[string]bool{}
 	)
 
 	{
@@ -98,9 +101,29 @@ func constructImportMapping(importMapping map[string]string) importMap {
 		sort.Strings(packagePaths)
 
 		for _, packagePath := range packagePaths {
-			if _, ok := pathToName[packagePath]; !ok && packagePath != importMappingCurrentPackage {
-				pathToName[packagePath] = fmt.Sprintf("externalRef%d", len(pathToName))
+			// Skip current package.
+			if packagePath == importMappingCurrentPackage {
+				continue
 			}
+
+			// Use last element of package path as package name.
+			packageName := filepath.Base(packagePath)
+			// Check if name has been claimed.
+			if claimedNames[packageName] {
+				i := 1
+				for {
+					// If so, set to a unique value.
+					// Produces externalRef1, externalRef01, externalRef
+					packageName = fmt.Sprintf("externalRef%0"+strconv.Itoa(i)+"d", len(pathToName))
+					if !claimedNames[packageName] {
+						break
+					}
+					i++
+				}
+			}
+			//
+			pathToName[packagePath] = packageName
+			claimedNames[packageName] = true
 		}
 	}
 	for specPath, packagePath := range importMapping {
