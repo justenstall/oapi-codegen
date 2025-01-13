@@ -1,4 +1,4 @@
-package codegen
+package generator
 
 import (
 	_ "embed"
@@ -40,7 +40,10 @@ func TestExampleOpenAPICodeGeneration(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Run our code generation:
-	code, err := Generate(swagger, opts)
+	gen, err := NewGenerator(swagger, opts)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, gen)
+	code, err := gen.Generate()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, code)
 
@@ -101,7 +104,10 @@ func TestExtPropGoTypeSkipOptionalPointer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run our code generation:
-	code, err := Generate(swagger, opts)
+	gen, err := NewGenerator(swagger, opts)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, gen)
+	code, err := gen.Generate()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, code)
 
@@ -138,7 +144,10 @@ func TestGoTypeImport(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run our code generation:
-	code, err := Generate(swagger, opts)
+	gen, err := NewGenerator(swagger, opts)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, gen)
+	code, err := gen.Generate()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, code)
 
@@ -186,7 +195,10 @@ func TestRemoteExternalReference(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run our code generation:
-	code, err := Generate(swagger, opts)
+	gen, err := NewGenerator(swagger, opts)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, gen)
+	code, err := gen.Generate()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, code)
 

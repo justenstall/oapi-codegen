@@ -1,12 +1,37 @@
-package codegen
+package generator
 
 import (
 	"testing"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestProperty_GoTypeDef(t *testing.T) {
+	// Input vars for code generation:
+	packageName := "testswagger"
+	opts := Configuration{
+		PackageName: packageName,
+		Generate: GenerateOptions{
+			EchoServer:   true,
+			Client:       true,
+			Models:       true,
+			EmbeddedSpec: true,
+		},
+	}
+
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+
+	// Get a spec from the test definition in this file:
+	swagger, err := loader.LoadFromData([]byte(testOpenAPIDefinition))
+	assert.NoError(t, err)
+
+	// Run our code generation:
+	gen, err := NewGenerator(swagger, opts)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, gen)
+
 	type fields struct {
 		GlobalStateDisableRequiredReadOnlyAsPointer bool
 		Schema                                      Schema
@@ -202,7 +227,7 @@ func TestProperty_GoTypeDef(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			globalState.options.Compatibility.DisableRequiredReadOnlyAsPointer = tt.fields.GlobalStateDisableRequiredReadOnlyAsPointer
+			gen.Options.Compatibility.DisableRequiredReadOnlyAsPointer = tt.fields.GlobalStateDisableRequiredReadOnlyAsPointer
 			p := Property{
 				Schema:    tt.fields.Schema,
 				Required:  tt.fields.Required,
@@ -210,12 +235,36 @@ func TestProperty_GoTypeDef(t *testing.T) {
 				ReadOnly:  tt.fields.ReadOnly,
 				WriteOnly: tt.fields.WriteOnly,
 			}
-			assert.Equal(t, tt.want, globalState.goTypeDef(p))
+			assert.Equal(t, tt.want, gen.goTypeDef(p))
 		})
 	}
 }
 
 func TestProperty_GoTypeDef_nullable(t *testing.T) {
+	// Input vars for code generation:
+	packageName := "testswagger"
+	opts := Configuration{
+		PackageName: packageName,
+		Generate: GenerateOptions{
+			EchoServer:   true,
+			Client:       true,
+			Models:       true,
+			EmbeddedSpec: true,
+		},
+	}
+
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+
+	// Get a spec from the test definition in this file:
+	swagger, err := loader.LoadFromData([]byte(testOpenAPIDefinition))
+	assert.NoError(t, err)
+
+	// Run our code generation:
+	gen, err := NewGenerator(swagger, opts)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, gen)
+
 	type fields struct {
 		GlobalStateDisableRequiredReadOnlyAsPointer bool
 		GlobalStateNullableType                     bool
@@ -441,8 +490,8 @@ func TestProperty_GoTypeDef_nullable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			globalState.options.Compatibility.DisableRequiredReadOnlyAsPointer = tt.fields.GlobalStateDisableRequiredReadOnlyAsPointer
-			globalState.options.OutputOptions.NullableType = tt.fields.GlobalStateNullableType
+			gen.Options.Compatibility.DisableRequiredReadOnlyAsPointer = tt.fields.GlobalStateDisableRequiredReadOnlyAsPointer
+			gen.Options.OutputOptions.NullableType = tt.fields.GlobalStateNullableType
 			p := Property{
 				Schema:    tt.fields.Schema,
 				Required:  tt.fields.Required,
@@ -450,7 +499,7 @@ func TestProperty_GoTypeDef_nullable(t *testing.T) {
 				ReadOnly:  tt.fields.ReadOnly,
 				WriteOnly: tt.fields.WriteOnly,
 			}
-			assert.Equal(t, tt.want, globalState.goTypeDef(p))
+			assert.Equal(t, tt.want, gen.goTypeDef(p))
 		})
 	}
 }

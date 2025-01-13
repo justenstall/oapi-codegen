@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package codegen
+package generator
 
 import (
 	"testing"
@@ -233,8 +233,31 @@ components:
 }
 
 func TestRefPathToGoType(t *testing.T) {
-	old := globalState.importMapping
-	globalState.importMapping = constructImportMapping(
+	// Input vars for code generation:
+	packageName := "testswagger"
+	opts := Configuration{
+		PackageName: packageName,
+		Generate: GenerateOptions{
+			EchoServer:   true,
+			Client:       true,
+			Models:       true,
+			EmbeddedSpec: true,
+		},
+	}
+
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+
+	// Get a spec from the test definition in this file:
+	swagger, err := loader.LoadFromData([]byte(testOpenAPIDefinition))
+	assert.NoError(t, err)
+
+	// Run our code generation:
+	gen, err := NewGenerator(swagger, opts)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, gen)
+
+	gen.ImportMapping = constructImportMapping(
 		map[string]string{
 			"doc.json":                    "externalref0",
 			"http://deepmap.com/doc.json": "externalref1",
@@ -242,7 +265,6 @@ func TestRefPathToGoType(t *testing.T) {
 			"dj-current-package.yml": "-",
 		},
 	)
-	defer func() { globalState.importMapping = old }()
 
 	tests := []struct {
 		name   string
@@ -305,7 +327,7 @@ func TestRefPathToGoType(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			goType, err := globalState.RefPathToGoType(tc.path)
+			goType, err := gen.RefPathToGoType(tc.path)
 			if tc.goType == "" {
 				assert.Error(t, err)
 				return
@@ -609,7 +631,7 @@ func TestSchemaNameToTypeName(t *testing.T) {
 		"<":            "LessThan",
 		">":            "GreaterThan",
 	} {
-		assert.Equal(t, want, SchemaNameToTypeName(in))
+		assert.Equal(t, want, SchemaNameToTypeName(in, ToCamelCase))
 	}
 }
 

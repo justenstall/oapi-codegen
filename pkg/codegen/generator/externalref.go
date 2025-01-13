@@ -1,4 +1,4 @@
-package codegen
+package generator
 
 import (
 	"fmt"
@@ -74,7 +74,7 @@ func (state *State) ensureExternalRefsInSchema(schema *Schema, ref string) {
 	}
 
 	parts := strings.SplitN(ref, "#", 2)
-	if pack, ok := state.importMapping[parts[0]]; ok {
+	if pack, ok := state.ImportMapping[parts[0]]; ok {
 		schema.RefType = fmt.Sprintf("%s.%s", pack.Name, schema.GoType)
 	}
 }
