@@ -48,6 +48,9 @@ type State struct {
 	spec           *openapi3.T
 	importMapping  importMap
 	nameNormalizer NameNormalizer
+	// initialismsMap stores initialisms as "lower(initialism) -> initialism" map.
+	// List of initialisms was taken from https://staticcheck.io/docs/configuration/options/#initialisms.
+	initialismsMap map[string]string
 }
 
 // TODO: uncomment
@@ -205,6 +208,12 @@ func (state *State) Generate() (string, error) {
 	}
 
 	templateFunctions := state.TemplateFunctions()
+
+	if nameNormalizerFunction != NameNormalizerFunctionToCamelCaseWithInitialisms && len(opts.OutputOptions.AdditionalInitialisms) > 0 {
+		return "", fmt.Errorf("you have specified `additional-initialisms`, but the `name-normalizer` is not set to `ToCamelCaseWithInitialisms`. Please specify `name-normalizer: ToCamelCaseWithInitialisms` or remove the `additional-initialisms` configuration")
+	}
+
+	globalState.initialismsMap = makeInitialismsMap(opts.OutputOptions.AdditionalInitialisms)
 
 	// This creates the golang templates text package
 	templateFunctions["opts"] = func() Configuration { return state.options }
