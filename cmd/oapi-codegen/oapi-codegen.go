@@ -304,7 +304,11 @@ func main() {
 		opts.Configuration.NoVCSVersionOverride = &noVCSVersionOverride
 	}
 
-	code, err := codegen.Generate(swagger, opts.Configuration)
+	gen, err := codegen.NewGenerator(swagger, opts.Configuration)
+	if err != nil {
+		errExit("error generating code: %s\n", err)
+	}
+	code, err := gen.Generate()
 	if err != nil {
 		errExit("error generating code: %s\n", err)
 	}

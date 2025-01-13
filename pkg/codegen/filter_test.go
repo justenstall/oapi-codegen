@@ -8,6 +8,13 @@ import (
 )
 
 func TestFilterOperationsByTag(t *testing.T) {
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+
+	// Get a spec from the test definition in this file:
+	swagger, err := loader.LoadFromData([]byte(testOpenAPIDefinition))
+	assert.NoError(t, err)
+
 	packageName := "testswagger"
 	t.Run("include tags", func(t *testing.T) {
 		opts := Configuration{
@@ -31,7 +38,10 @@ func TestFilterOperationsByTag(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Run our code generation:
-		code, err := Generate(swagger, opts)
+		gen, err := NewGenerator(swagger, opts)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, gen)
+		code, err := gen.Generate()
 		assert.NoError(t, err)
 		assert.NotEmpty(t, code)
 		assert.NotContains(t, code, `"/test/:name"`)
@@ -52,15 +62,11 @@ func TestFilterOperationsByTag(t *testing.T) {
 			},
 		}
 
-		loader := openapi3.NewLoader()
-		loader.IsExternalRefsAllowed = true
-
-		// Get a spec from the test definition in this file:
-		swagger, err := loader.LoadFromData([]byte(testOpenAPIDefinition))
-		assert.NoError(t, err)
-
 		// Run our code generation:
-		code, err := Generate(swagger, opts)
+		gen, err := NewGenerator(swagger, opts)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, gen)
+		code, err := gen.Generate()
 		assert.NoError(t, err)
 		assert.NotEmpty(t, code)
 		assert.Contains(t, code, `"/test/:name"`)
@@ -69,6 +75,13 @@ func TestFilterOperationsByTag(t *testing.T) {
 }
 
 func TestFilterOperationsByOperationID(t *testing.T) {
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+
+	// Get a spec from the test definition in this file:
+	swagger, err := loader.LoadFromData([]byte(testOpenAPIDefinition))
+	assert.NoError(t, err)
+
 	packageName := "testswagger"
 	t.Run("include operation ids", func(t *testing.T) {
 		opts := Configuration{
@@ -84,15 +97,11 @@ func TestFilterOperationsByOperationID(t *testing.T) {
 			},
 		}
 
-		loader := openapi3.NewLoader()
-		loader.IsExternalRefsAllowed = true
-
-		// Get a spec from the test definition in this file:
-		swagger, err := loader.LoadFromData([]byte(testOpenAPIDefinition))
-		assert.NoError(t, err)
-
 		// Run our code generation:
-		code, err := Generate(swagger, opts)
+		gen, err := NewGenerator(swagger, opts)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, gen)
+		code, err := gen.Generate()
 		assert.NoError(t, err)
 		assert.NotEmpty(t, code)
 		assert.NotContains(t, code, `"/test/:name"`)
@@ -112,13 +121,6 @@ func TestFilterOperationsByOperationID(t *testing.T) {
 				ExcludeOperationIDs: []string{"getCatStatus"},
 			},
 		}
-
-		loader := openapi3.NewLoader()
-		loader.IsExternalRefsAllowed = true
-
-		// Get a spec from the test definition in this file:
-		swagger, err := loader.LoadFromData([]byte(testOpenAPIDefinition))
-		assert.NoError(t, err)
 
 		// Run our code generation:
 		gen, err := NewGenerator(swagger, opts)
