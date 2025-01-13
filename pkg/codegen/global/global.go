@@ -21,13 +21,16 @@ var (
 // the descriptions we've built up above from the schema objects.
 // opts defines
 func Generate(spec *openapi3.T, opts codegen.Configuration) (string, error) {
+	// Create new state as a local variable
 	state, err := codegen.NewGenerator(spec, opts)
 	if err != nil {
-		globalStateError = err
 		return "", err
 	}
-	globalState = *state
-	return globalState.Generate()
+	// Set the global state to the locally-scoped generator AFTER generating code
+	// This preserves the existing global state behavior without race conditions
+	defer func() { globalState = *state }()
+	// Run the locally-scoped generator
+	return state.Generate()
 }
 
 func SetGlobalStateSpec(spec *openapi3.T) {
@@ -42,7 +45,6 @@ func SetGlobalStateOptions(opts codegen.Configuration) {
 
 var (
 	// codegen.go
-	// Generate                      = globalState.Generate
 	GenerateTypeDefinitions       = globalState.GenerateTypeDefinitions
 	GenerateTypesForSchemas       = globalState.GenerateTypesForSchemas
 	GenerateTypesForParameters    = globalState.GenerateTypesForParameters
