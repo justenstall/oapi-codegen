@@ -25,7 +25,6 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"regexp"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -49,20 +48,7 @@ type State struct {
 	spec           *openapi3.T
 	importMapping  importMap
 	nameNormalizer NameNormalizer
-	// initialismsMap stores initialisms as "lower(initialism) -> initialism" map.
-	// List of initialisms was taken from https://staticcheck.io/docs/configuration/options/#initialisms.
-	initialismsMap map[string]string
-	// initialismsRegex is a compiled regular expression matching the initialisms
-	initialismsRegex *regexp.Regexp
-	// // toCamelCaseFunc is used for operation IDs only
-	// toCamelCaseFunc func(s string) string
-}
-
-func (state *State) InitialismsMap() map[string]string {
-	if state == nil {
-		return nil
-	}
-	return state.initialismsMap
+	initialisms    Initialisms
 }
 
 // TODO: uncomment
@@ -159,29 +145,29 @@ func (state *State) SetOptions(opts Configuration) error {
 		state = &State{}
 	}
 
-	state.initialismsMap, state.initialismsRegex = parseInitialisms(opts.OutputOptions.AdditionalInitialisms)
+	state.initialisms = ParseInitialisms(opts.OutputOptions.AdditionalInitialisms)
 
-	nameNormalizerFunction := NameNormalizerFunction(opts.OutputOptions.NameNormalizer)
+	nnName := NameNormalizerFunction(opts.OutputOptions.NameNormalizer)
 
 	var nn NameNormalizer
 	switch {
 	// Name not set, use default
-	case nameNormalizerFunction == "":
+	case nnName == "":
 		nn = ToCamelCase
 	// Name not found
-	case NameNormalizers[nameNormalizerFunction] == nil:
+	case NameNormalizers[nnName] == nil:
 		return fmt.Errorf(`the name-normalizer option %v could not be found among options %q`,
 			opts.OutputOptions.NameNormalizer, NameNormalizers.Options())
 	// Additional initialisms provided but not using normalizer with initialisms
-	case nameNormalizerFunction != NameNormalizerFunctionToCamelCaseWithInitialisms &&
+	case nnName != NameNormalizerFunctionToCamelCaseWithInitialisms &&
 		len(opts.OutputOptions.AdditionalInitialisms) > 0:
 		return fmt.Errorf("you have specified `additional-initialisms`, but the `name-normalizer` is not set to `ToCamelCaseWithInitialisms`. Please specify `name-normalizer: ToCamelCaseWithInitialisms` or remove the `additional-initialisms` configuration")
 	// Special case for initialisms to use the configured state with additional initialisms
-	case nameNormalizerFunction == NameNormalizerFunctionToCamelCaseWithInitialisms:
+	case nnName == NameNormalizerFunctionToCamelCaseWithInitialisms:
 		nn = state.ToCamelCaseWithInitialisms
 	// Default: select from NameNormalizerMap
 	default:
-		nn = NameNormalizers[nameNormalizerFunction]
+		nn = NameNormalizers[nnName]
 	}
 	state.options = opts
 	state.importMapping = constructImportMapping(opts.ImportMapping)

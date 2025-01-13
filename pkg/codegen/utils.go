@@ -157,7 +157,7 @@ var NameNormalizers = NameNormalizerMap{
 	NameNormalizerFunctionUnset:                      ToCamelCase,
 	NameNormalizerFunctionToCamelCase:                ToCamelCase,
 	NameNormalizerFunctionToCamelCaseWithDigits:      ToCamelCaseWithDigits,
-	NameNormalizerFunctionToCamelCaseWithInitialisms: func(s string) string { return ToCamelCaseWithInitialisms(s, defaultInitialismsMap) },
+	NameNormalizerFunctionToCamelCaseWithInitialisms: defaultInitialisms.ToCamelCaseWithInitialisms,
 }
 
 // UppercaseFirstCharacter Uppercases the first character in a string. This assumes UTF-8, so we have
@@ -288,16 +288,16 @@ func ToCamelCaseWithDigits(s string) string {
 // func ToCamelCaseWithInitialisms(s string) string {}
 
 func (state *State) ToCamelCaseWithInitialisms(s string) string {
-	return ToCamelCaseWithInitialisms(s, state.initialismsMap)
+	return state.initialisms.ToCamelCaseWithInitialisms(s)
 }
 
 // ToCamelCaseWithInitialisms function will convert query-arg style strings to CamelCase with initialisms in uppercase.
 // So, httpOperationId would be converted to HTTPOperationID
-func ToCamelCaseWithInitialisms(s string, initialismsMap map[string]string) string {
+func (initialisms *Initialisms) ToCamelCaseWithInitialisms(s string) string {
 	parts := camelCaseMatchParts.FindAllString(ToCamelCaseWithDigits(s), -1)
-	if initialismsMap != nil {
+	if initialisms != nil && initialisms.Map != nil {
 		for i := range parts {
-			if v, ok := initialismsMap[strings.ToLower(parts[i])]; ok {
+			if v, ok := initialisms.Map[strings.ToLower(parts[i])]; ok {
 				parts[i] = v
 			}
 		}
@@ -305,40 +305,30 @@ func ToCamelCaseWithInitialisms(s string, initialismsMap map[string]string) stri
 	return strings.Join(parts, "")
 }
 
-var camelCaseMatchParts = regexp.MustCompile(`[\p{Lu}\d]+([\p{Ll}\d]+|$)`)
+// Default initialism configuration.
+var (
+	camelCaseMatchParts = regexp.MustCompile(`[\p{Lu}\d]+([\p{Ll}\d]+|$)`)
 
-var initialismsList = []string{
-	"ACL", "API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON",
-	"QPS", "RAM", "RPC", "SLA", "SMTP", "SQL", "SSH", "TCP", "TLS", "TTL", "UDP", "UI", "GID", "UID", "UUID",
-	"URI", "URL", "UTF8", "VM", "XML", "XMPP", "XSRF", "XSS", "SIP", "RTP", "AMQP", "DB", "TS",
+	// List of initialisms was taken from https://staticcheck.io/docs/configuration/options/#initialisms.
+	initialismsList = []string{
+		"ACL", "API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON",
+		"QPS", "RAM", "RPC", "SLA", "SMTP", "SQL", "SSH", "TCP", "TLS", "TTL", "UDP", "UI", "GID", "UID", "UUID",
+		"URI", "URL", "UTF8", "VM", "XML", "XMPP", "XSRF", "XSS", "SIP", "RTP", "AMQP", "DB", "TS",
+	}
+
+	// Parsed default initialisms
+	defaultInitialisms = ParseInitialisms(nil)
+)
+
+type Initialisms struct {
+	// Map stores initialisms as "lower(initialism) -> initialism" map.
+	Map map[string]string
+	// Regex is a compiled regular expression matching the initialisms
+	Regex *regexp.Regexp
 }
 
-var defaultInitialismsMap, defaultInitialismsRegex = parseInitialisms(nil)
-
-// TODO: uncomment
-// // targetWordRegex is a regex that matches all initialisms.
-// var targetWordRegex *regexp.Regexp
-
-// TODO: uncomment
-// func makeInitialismsMap(additionalInitialisms []string) map[string]string {
-// 	l := append(initialismsList, additionalInitialisms...)
-
-// 	m := make(map[string]string, len(l))
-// 	for i := range l {
-// 		m[strings.ToLower(l[i])] = l[i]
-// 	}
-
-// 	// Create a regex to match the initialisms
-// 	targetWordRegex = regexp.MustCompile(`(?i)(` + strings.Join(l, "|") + `)`)
-
-// 	return m
-// }
-
-// parseInitialisms parses the default and any additional initialisms and returns a map and compiled regex to use for replacement functions.
-// Returns:
-// initialismsMap: stores initialisms as "lower(initialism) -> initialism" map.
-// targetWordRegex: a regex that matches all initialisms
-func parseInitialisms(additionalInitialisms []string) (initialismsMap map[string]string, targetWordRegex *regexp.Regexp) {
+// ParseInitialisms parses the default and any additional initialisms and returns a map and compiled regex to use for replacement functions.
+func ParseInitialisms(additionalInitialisms []string) Initialisms {
 	l := append(initialismsList, additionalInitialisms...)
 	m := make(map[string]string, len(l))
 	for i := range l {
@@ -346,15 +336,14 @@ func parseInitialisms(additionalInitialisms []string) (initialismsMap map[string
 	}
 	// Create a regex to match the initialisms
 	re := regexp.MustCompile(`(?i)(` + strings.Join(l, "|") + `)`)
-	return m, re
+	return Initialisms{
+		Map:   m,
+		Regex: re,
+	}
 }
 
 func (state *State) ToCamelCaseWithInitialism(str string) string {
-	return ToCamelCaseWithInitialism(str, state.initialismsRegex)
-}
-
-func ToCamelCaseWithInitialism(str string, initialismsRegex *regexp.Regexp) string {
-	return replaceInitialism(ToCamelCase(str), initialismsRegex)
+	return state.initialisms.replaceInitialism(ToCamelCase(str))
 }
 
 // TODO: uncomment
@@ -362,10 +351,13 @@ func ToCamelCaseWithInitialism(str string, initialismsRegex *regexp.Regexp) stri
 //		return replaceInitialism(ToCamelCase(str))
 //	}
 
-func replaceInitialism(s string, initialismsRegex *regexp.Regexp) string {
+func (initialisms *Initialisms) replaceInitialism(s string) string {
+	if initialisms == nil || initialisms.Regex == nil {
+		return s
+	}
 	// These strings do not apply CamelCase
 	// Do not do CamelCase when these characters match when the preceding character is lowercase
-	return initialismsRegex.ReplaceAllStringFunc(s, func(s string) string {
+	return initialisms.Regex.ReplaceAllStringFunc(s, func(s string) string {
 		// If the preceding character is lowercase, do not do CamelCase
 		if unicode.IsLower(rune(s[0])) {
 			return s
