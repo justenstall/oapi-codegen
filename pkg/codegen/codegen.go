@@ -177,9 +177,7 @@ func Generate(spec *openapi3.T, opts Configuration) (string, error) {
 	}
 	// Set the global state to the locally-scoped generator AFTER generating code
 	// This preserves the existing global state behavior without race conditions
-	defer func() {
-		globalState = *state
-	}()
+	defer func() { globalState = *state }()
 	// Run the locally-scoped generator
 	return state.Generate()
 }
