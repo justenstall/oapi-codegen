@@ -76,8 +76,10 @@ var (
 	TemplateFunctions = globalState.TemplateFunctions
 
 	// utils.go
-	RefPathToGoType      = globalState.RefPathToGoType
-	SanitizeEnumNames    = globalState.SanitizeEnumNames
-	SchemaNameToTypeName = globalState.SchemaNameToTypeName
-	PathToTypeName       = globalState.PathToTypeName
+	ToCamelCaseWithInitialisms = globalState.ToCamelCaseWithInitialisms
+	ToCamelCaseWithInitialism  = globalState.ToCamelCaseWithInitialism
+	RefPathToGoType            = globalState.RefPathToGoType
+	SanitizeEnumNames          = globalState.SanitizeEnumNames
+	SchemaNameToTypeName       = globalState.SchemaNameToTypeName
+	PathToTypeName             = globalState.PathToTypeName
 )

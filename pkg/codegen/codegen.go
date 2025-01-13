@@ -25,6 +25,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -51,6 +52,17 @@ type State struct {
 	// initialismsMap stores initialisms as "lower(initialism) -> initialism" map.
 	// List of initialisms was taken from https://staticcheck.io/docs/configuration/options/#initialisms.
 	initialismsMap map[string]string
+	// initialismsRegex is a compiled regular expression matching the initialisms
+	initialismsRegex *regexp.Regexp
+	// // toCamelCaseFunc is used for operation IDs only
+	// toCamelCaseFunc func(s string) string
+}
+
+func (state *State) InitialismsMap() map[string]string {
+	if state == nil {
+		return nil
+	}
+	return state.initialismsMap
 }
 
 // TODO: uncomment
@@ -146,25 +158,35 @@ func (state *State) SetOptions(opts Configuration) error {
 	if state == nil {
 		state = &State{}
 	}
+
+	state.initialismsMap, state.initialismsRegex = parseInitialisms(opts.OutputOptions.AdditionalInitialisms)
+
+	nameNormalizerFunction := NameNormalizerFunction(opts.OutputOptions.NameNormalizer)
+
 	var nn NameNormalizer
 	switch {
-	// Set with function
-	case opts.OutputOptions.NameNormalizerFunction != nil:
-		nn = opts.OutputOptions.NameNormalizerFunction
-	// Set by name
-	case opts.OutputOptions.NameNormalizer != "":
-		nn = NameNormalizers[NameNormalizerFunction(opts.OutputOptions.NameNormalizer)]
-		if nn == nil {
-			return fmt.Errorf(`the name-normalizer option %v could not be found among options %q`,
-				opts.OutputOptions.NameNormalizer, NameNormalizers.Options())
-		}
-	// Default to ToCamelCase function
-	default:
+	// Name not set, use default
+	case nameNormalizerFunction == "":
 		nn = ToCamelCase
+	// Name not found
+	case NameNormalizers[nameNormalizerFunction] == nil:
+		return fmt.Errorf(`the name-normalizer option %v could not be found among options %q`,
+			opts.OutputOptions.NameNormalizer, NameNormalizers.Options())
+	// Additional initialisms provided but not using normalizer with initialisms
+	case nameNormalizerFunction != NameNormalizerFunctionToCamelCaseWithInitialisms &&
+		len(opts.OutputOptions.AdditionalInitialisms) > 0:
+		return fmt.Errorf("you have specified `additional-initialisms`, but the `name-normalizer` is not set to `ToCamelCaseWithInitialisms`. Please specify `name-normalizer: ToCamelCaseWithInitialisms` or remove the `additional-initialisms` configuration")
+	// Special case for initialisms to use the configured state with additional initialisms
+	case nameNormalizerFunction == NameNormalizerFunctionToCamelCaseWithInitialisms:
+		nn = state.ToCamelCaseWithInitialisms
+	// Default: select from NameNormalizerMap
+	default:
+		nn = NameNormalizers[nameNormalizerFunction]
 	}
 	state.options = opts
 	state.importMapping = constructImportMapping(opts.ImportMapping)
 	state.nameNormalizer = nn
+
 	return nil
 }
 
@@ -209,12 +231,6 @@ func (state *State) Generate() (string, error) {
 
 	templateFunctions := state.TemplateFunctions()
 
-	if nameNormalizerFunction != NameNormalizerFunctionToCamelCaseWithInitialisms && len(opts.OutputOptions.AdditionalInitialisms) > 0 {
-		return "", fmt.Errorf("you have specified `additional-initialisms`, but the `name-normalizer` is not set to `ToCamelCaseWithInitialisms`. Please specify `name-normalizer: ToCamelCaseWithInitialisms` or remove the `additional-initialisms` configuration")
-	}
-
-	globalState.initialismsMap = makeInitialismsMap(opts.OutputOptions.AdditionalInitialisms)
-
 	// This creates the golang templates text package
 	templateFunctions["opts"] = func() Configuration { return state.options }
 	t := template.New("oapi-codegen").Funcs(templateFunctions)
@@ -240,7 +256,7 @@ func (state *State) Generate() (string, error) {
 		}
 	}
 
-	ops, err := state.OperationDefinitions(spec, opts.OutputOptions.InitialismOverrides)
+	ops, err := state.OperationDefinitions(spec)
 	if err != nil {
 		return "", fmt.Errorf("error creating operation definitions: %w", err)
 	}
@@ -745,7 +761,7 @@ func (state *State) GenerateTypesForResponses(t *template.Template, responses op
 			}
 
 			if jsonCount > 1 {
-				typeDef.TypeName = typeDef.TypeName + mediaTypeToCamelCase(mediaType)
+				typeDef.TypeName = typeDef.TypeName + state.mediaTypeToCamelCase(mediaType)
 			}
 
 			types = append(types, typeDef)

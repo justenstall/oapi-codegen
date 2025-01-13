@@ -153,7 +153,7 @@ func TestToCamelCaseWithInitialisms(t *testing.T) {
 	for i := range tests {
 		tt := tests[i]
 		t.Run(tt.str, func(t *testing.T) {
-			require.Equal(t, tt.want, ToCamelCaseWithInitialisms(tt.str))
+			require.Equal(t, tt.want, ToCamelCaseWithInitialisms(tt.str, defaultInitialismsMap))
 		})
 	}
 }
@@ -718,7 +718,7 @@ func Test_replaceInitialism(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, replaceInitialism(tt.args.s), "replaceInitialism(%v)", tt.args.s)
+			assert.Equalf(t, tt.want, replaceInitialism(tt.args.s, defaultInitialismsRegex), "replaceInitialism(%v)", tt.args.s)
 		})
 	}
 }

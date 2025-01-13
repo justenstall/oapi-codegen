@@ -360,7 +360,7 @@ func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefini
 							return nil, fmt.Errorf("error dereferencing response Ref: %w", err)
 						}
 						if jsonCount > 1 && util.IsMediaTypeJson(contentTypeName) {
-							refType += mediaTypeToCamelCase(contentTypeName)
+							refType += o.state.mediaTypeToCamelCase(contentTypeName)
 						}
 						td.Schema.RefType = refType
 					}
@@ -565,12 +565,12 @@ func FilterParameterDefinitionByType(params []ParameterDefinition, in string) []
 // }
 
 // OperationDefinitions returns all operations for a swagger definition.
-func (state *State) OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]OperationDefinition, error) {
+func (state *State) OperationDefinitions(swagger *openapi3.T) ([]OperationDefinition, error) {
 	var operations []OperationDefinition
 
 	var toCamelCaseFunc func(string) string
-	if initialismOverrides {
-		toCamelCaseFunc = ToCamelCaseWithInitialism
+	if state.options.OutputOptions.InitialismOverrides {
+		toCamelCaseFunc = state.ToCamelCaseWithInitialism
 	} else {
 		toCamelCaseFunc = ToCamelCase
 	}
@@ -738,7 +738,7 @@ func (state *State) GenerateBodyDefinitions(operationID string, bodyOrRef *opena
 			tag = "JSON"
 			defaultBody = true
 		case util.IsMediaTypeJson(contentType):
-			tag = mediaTypeToCamelCase(contentType)
+			tag = state.mediaTypeToCamelCase(contentType)
 		case strings.HasPrefix(contentType, "multipart/"):
 			tag = "Multipart"
 		case contentType == "application/x-www-form-urlencoded":
@@ -847,7 +847,7 @@ func (state *State) GenerateResponseDefinitions(operationID string, responses ma
 			case contentType == "application/json":
 				tag = "JSON"
 			case util.IsMediaTypeJson(contentType):
-				tag = mediaTypeToCamelCase(contentType)
+				tag = state.mediaTypeToCamelCase(contentType)
 			case contentType == "application/x-www-form-urlencoded":
 				tag = "Formdata"
 			case strings.HasPrefix(contentType, "multipart/"):

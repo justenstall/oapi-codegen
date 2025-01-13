@@ -157,7 +157,7 @@ var NameNormalizers = NameNormalizerMap{
 	NameNormalizerFunctionUnset:                      ToCamelCase,
 	NameNormalizerFunctionToCamelCase:                ToCamelCase,
 	NameNormalizerFunctionToCamelCaseWithDigits:      ToCamelCaseWithDigits,
-	NameNormalizerFunctionToCamelCaseWithInitialisms: ToCamelCaseWithInitialisms,
+	NameNormalizerFunctionToCamelCaseWithInitialisms: func(s string) string { return ToCamelCaseWithInitialisms(s, defaultInitialismsMap) },
 }
 
 // UppercaseFirstCharacter Uppercases the first character in a string. This assumes UTF-8, so we have
@@ -282,13 +282,24 @@ func ToCamelCaseWithDigits(s string) string {
 	return res.String()
 }
 
+// TODO: uncomment
+// // ToCamelCaseWithInitialisms function will convert query-arg style strings to CamelCase with initialisms in uppercase.
+// // So, httpOperationId would be converted to HTTPOperationID
+// func ToCamelCaseWithInitialisms(s string) string {}
+
+func (state *State) ToCamelCaseWithInitialisms(s string) string {
+	return ToCamelCaseWithInitialisms(s, state.initialismsMap)
+}
+
 // ToCamelCaseWithInitialisms function will convert query-arg style strings to CamelCase with initialisms in uppercase.
 // So, httpOperationId would be converted to HTTPOperationID
-func ToCamelCaseWithInitialisms(s string) string {
+func ToCamelCaseWithInitialisms(s string, initialismsMap map[string]string) string {
 	parts := camelCaseMatchParts.FindAllString(ToCamelCaseWithDigits(s), -1)
-	for i := range parts {
-		if v, ok := globalState.initialismsMap[strings.ToLower(parts[i])]; ok {
-			parts[i] = v
+	if initialismsMap != nil {
+		for i := range parts {
+			if v, ok := initialismsMap[strings.ToLower(parts[i])]; ok {
+				parts[i] = v
+			}
 		}
 	}
 	return strings.Join(parts, "")
@@ -302,31 +313,59 @@ var initialismsList = []string{
 	"URI", "URL", "UTF8", "VM", "XML", "XMPP", "XSRF", "XSS", "SIP", "RTP", "AMQP", "DB", "TS",
 }
 
-// targetWordRegex is a regex that matches all initialisms.
-var targetWordRegex *regexp.Regexp
+var defaultInitialismsMap, defaultInitialismsRegex = parseInitialisms(nil)
 
-func makeInitialismsMap(additionalInitialisms []string) map[string]string {
+// TODO: uncomment
+// // targetWordRegex is a regex that matches all initialisms.
+// var targetWordRegex *regexp.Regexp
+
+// TODO: uncomment
+// func makeInitialismsMap(additionalInitialisms []string) map[string]string {
+// 	l := append(initialismsList, additionalInitialisms...)
+
+// 	m := make(map[string]string, len(l))
+// 	for i := range l {
+// 		m[strings.ToLower(l[i])] = l[i]
+// 	}
+
+// 	// Create a regex to match the initialisms
+// 	targetWordRegex = regexp.MustCompile(`(?i)(` + strings.Join(l, "|") + `)`)
+
+// 	return m
+// }
+
+// parseInitialisms parses the default and any additional initialisms and returns a map and compiled regex to use for replacement functions.
+// Returns:
+// initialismsMap: stores initialisms as "lower(initialism) -> initialism" map.
+// targetWordRegex: a regex that matches all initialisms
+func parseInitialisms(additionalInitialisms []string) (initialismsMap map[string]string, targetWordRegex *regexp.Regexp) {
 	l := append(initialismsList, additionalInitialisms...)
-
 	m := make(map[string]string, len(l))
 	for i := range l {
 		m[strings.ToLower(l[i])] = l[i]
 	}
-
 	// Create a regex to match the initialisms
-	targetWordRegex = regexp.MustCompile(`(?i)(` + strings.Join(l, "|") + `)`)
-
-	return m
+	re := regexp.MustCompile(`(?i)(` + strings.Join(l, "|") + `)`)
+	return m, re
 }
 
-func ToCamelCaseWithInitialism(str string) string {
-	return replaceInitialism(ToCamelCase(str))
+func (state *State) ToCamelCaseWithInitialism(str string) string {
+	return ToCamelCaseWithInitialism(str, state.initialismsRegex)
 }
 
-func replaceInitialism(s string) string {
+func ToCamelCaseWithInitialism(str string, initialismsRegex *regexp.Regexp) string {
+	return replaceInitialism(ToCamelCase(str), initialismsRegex)
+}
+
+// TODO: uncomment
+//	func ToCamelCaseWithInitialism(str string) string {
+//		return replaceInitialism(ToCamelCase(str))
+//	}
+
+func replaceInitialism(s string, initialismsRegex *regexp.Regexp) string {
 	// These strings do not apply CamelCase
 	// Do not do CamelCase when these characters match when the preceding character is lowercase
-	return targetWordRegex.ReplaceAllStringFunc(s, func(s string) string {
+	return initialismsRegex.ReplaceAllStringFunc(s, func(s string) string {
 		// If the preceding character is lowercase, do not do CamelCase
 		if unicode.IsLower(rune(s[0])) {
 			return s
@@ -336,14 +375,14 @@ func replaceInitialism(s string) string {
 }
 
 // mediaTypeToCamelCase converts a media type to a PascalCase representation
-func mediaTypeToCamelCase(s string) string {
+func (state *State) mediaTypeToCamelCase(s string) string {
 	// ToCamelCase doesn't - and won't - add `/` to the characters it'll allow word boundary
 	s = strings.Replace(s, "/", "_", 1)
 	// including a _ to make sure that these are treated as word boundaries by `ToCamelCase`
 	s = strings.Replace(s, "*", "Wildcard_", 1)
 	s = strings.Replace(s, "+", "Plus_", 1)
 
-	return ToCamelCaseWithInitialism(s)
+	return state.ToCamelCaseWithInitialism(s)
 }
 
 // SortedMapKeys takes a map with keys of type string and returns a slice of those
