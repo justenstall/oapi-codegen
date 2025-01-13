@@ -43,14 +43,17 @@ var templates embed.FS
 
 // State defines code generation state.
 type State struct {
-	options       Configuration
-	spec          *openapi3.T
-	importMapping importMap
+	options        Configuration
+	spec           *openapi3.T
+	importMapping  importMap
+	nameNormalizer NameNormalizer
 }
 
 // globalState stores all global state. Please don't put global state anywhere
 // else so that we can easily track it.
-var globalState State
+var globalState State = State{
+	nameNormalizer: ToCamelCase, // set default nameNormalizer before any spec is parsed
+}
 
 // goImport represents a go package to be imported in the generated code
 type goImport struct {
@@ -115,17 +118,37 @@ func constructImportMapping(importMapping map[string]string) importMap {
 // the descriptions we've built up above from the schema objects.
 // opts defines
 func Generate(spec *openapi3.T, opts Configuration) (string, error) {
-	state := NewGenerator(spec, opts)
+	state, err := NewGenerator(spec, opts)
+	if err != nil {
+		return "", err
+	}
 	globalState = *state
 	return globalState.Generate()
 }
 
-func NewGenerator(spec *openapi3.T, opts Configuration) *State {
-	return &State{
-		options:       opts,
-		spec:          spec,
-		importMapping: constructImportMapping(opts.ImportMapping),
+func NewGenerator(spec *openapi3.T, opts Configuration) (*State, error) {
+	var nn NameNormalizer
+	switch {
+	// Set with function
+	case opts.OutputOptions.NameNormalizerFunction != nil:
+		nn = opts.OutputOptions.NameNormalizerFunction
+	// Set by name
+	case opts.OutputOptions.NameNormalizer != "":
+		nn = NameNormalizers[NameNormalizerFunction(opts.OutputOptions.NameNormalizer)]
+		if nn == nil {
+			return nil, fmt.Errorf(`the name-normalizer option %v could not be found among options %q`,
+				opts.OutputOptions.NameNormalizer, NameNormalizers.Options())
+		}
+	// Default to ToCamelCase function
+	default:
+		nn = ToCamelCase
 	}
+	return &State{
+		options:        opts,
+		spec:           spec,
+		importMapping:  constructImportMapping(opts.ImportMapping),
+		nameNormalizer: nn,
+	}, nil
 }
 
 // Generate uses the Go templating engine to generate all of our server wrappers from
@@ -148,13 +171,6 @@ func (state *State) Generate() (string, error) {
 
 	if state.options.OutputOptions.ClientTypeName == "" {
 		state.options.OutputOptions.ClientTypeName = defaultClientTypeName
-	}
-
-	nameNormalizerFunction := NameNormalizerFunction(opts.OutputOptions.NameNormalizer)
-	nameNormalizer = NameNormalizers[nameNormalizerFunction]
-	if nameNormalizer == nil {
-		return "", fmt.Errorf(`the name-normalizer option %v could not be found among options %q`,
-			opts.OutputOptions.NameNormalizer, NameNormalizers.Options())
 	}
 
 	templateFunctions := state.TemplateFunctions()

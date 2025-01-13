@@ -237,6 +237,9 @@ type OutputOptions struct {
 	// NameNormalizer is the method used to normalize Go names and types, for instance converting the text `MyApi` to `MyAPI`. Corresponds with the constants defined for `codegen.NameNormalizerFunction`
 	NameNormalizer string `yaml:"name-normalizer,omitempty"`
 
+	// NameNormalizerFunction sets the NameNormalizer when using as a library.
+	NameNormalizerFunction NameNormalizer `yaml:"-"`
+
 	// Overlay defines configuration for the OpenAPI Overlay (https://github.com/OAI/Overlay-Specification) to manipulate the OpenAPI specification before generation. This allows modifying the specification without needing to apply changes directly to it, making it easier to keep it up-to-date.
 	Overlay OutputOptionsOverlay `yaml:"overlay"`
 }

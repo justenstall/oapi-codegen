@@ -97,7 +97,7 @@ var (
 		'[': {},
 		']': {},
 	}
-	nameNormalizer NameNormalizer = ToCamelCase
+	// nameNormalizer NameNormalizer = ToCamelCase
 )
 
 type NameNormalizerFunction string
@@ -838,6 +838,12 @@ func typeNamePrefix(name string) (prefix string) {
 // SchemaNameToTypeName converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
 // valid in Go
 func SchemaNameToTypeName(name string) string {
+	return schemaNameToTypeName(name, globalState.nameNormalizer)
+}
+
+// schemaNameToTypeName converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
+// valid in Go
+func schemaNameToTypeName(name string, nameNormalizer NameNormalizer) string {
 	return typeNamePrefix(name) + nameNormalizer(name)
 }
 
@@ -861,6 +867,12 @@ func SchemaHasAdditionalProperties(schema *openapi3.Schema) bool {
 // PathToTypeName converts a path, like Object/field1/nestedField into a go
 // type name.
 func PathToTypeName(path []string) string {
+	return pathToTypeName(path, globalState.nameNormalizer)
+}
+
+// pathToTypeName converts a path, like Object/field1/nestedField into a go
+// type name.
+func pathToTypeName(path []string, nameNormalizer NameNormalizer) string {
 	for i, p := range path {
 		path[i] = nameNormalizer(p)
 	}

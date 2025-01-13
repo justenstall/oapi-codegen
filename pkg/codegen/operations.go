@@ -324,21 +324,21 @@ func (state *State) GetResponseTypeDefinitions(o *OperationDefinition) ([]Respon
 
 					// HAL+JSON:
 					case StringInArray(contentTypeName, contentTypesHalJSON):
-						typeName = fmt.Sprintf("HALJSON%s", nameNormalizer(responseName))
+						typeName = fmt.Sprintf("HALJSON%s", state.nameNormalizer(responseName))
 					case "application/json" == contentTypeName:
 						// if it's the standard application/json
-						typeName = fmt.Sprintf("JSON%s", nameNormalizer(responseName))
+						typeName = fmt.Sprintf("JSON%s", state.nameNormalizer(responseName))
 					// Vendored JSON
 					case StringInArray(contentTypeName, contentTypesJSON) || util.IsMediaTypeJson(contentTypeName):
-						baseTypeName := fmt.Sprintf("%s%s", nameNormalizer(contentTypeName), nameNormalizer(responseName))
+						baseTypeName := fmt.Sprintf("%s%s", state.nameNormalizer(contentTypeName), state.nameNormalizer(responseName))
 
 						typeName = strings.ReplaceAll(baseTypeName, "Json", "JSON")
 					// YAML:
 					case StringInArray(contentTypeName, contentTypesYAML):
-						typeName = fmt.Sprintf("YAML%s", nameNormalizer(responseName))
+						typeName = fmt.Sprintf("YAML%s", state.nameNormalizer(responseName))
 					// XML:
 					case StringInArray(contentTypeName, contentTypesXML):
-						typeName = fmt.Sprintf("XML%s", nameNormalizer(responseName))
+						typeName = fmt.Sprintf("XML%s", state.nameNormalizer(responseName))
 					default:
 						continue
 					}
@@ -593,7 +593,7 @@ func (state *State) OperationDefinitions(swagger *openapi3.T, initialismOverride
 						opName, requestPath, err)
 				}
 			} else {
-				op.OperationID = nameNormalizer(op.OperationID)
+				op.OperationID = state.nameNormalizer(op.OperationID)
 			}
 			op.OperationID = typeNamePrefix(op.OperationID) + op.OperationID
 
@@ -641,7 +641,7 @@ func (state *State) OperationDefinitions(swagger *openapi3.T, initialismOverride
 				HeaderParams: FilterParameterDefinitionByType(allParams, "header"),
 				QueryParams:  FilterParameterDefinitionByType(allParams, "query"),
 				CookieParams: FilterParameterDefinitionByType(allParams, "cookie"),
-				OperationId:  nameNormalizer(op.OperationID),
+				OperationId:  state.nameNormalizer(op.OperationID),
 				// Replace newlines in summary.
 				Summary:         op.Summary,
 				Method:          opName,
@@ -678,7 +678,7 @@ func (state *State) OperationDefinitions(swagger *openapi3.T, initialismOverride
 	return operations, nil
 }
 
-func generateDefaultOperationID(opName string, requestPath string, toCamelCaseFunc func(string) string) (string, error) {
+func generateDefaultOperationID(opName string, requestPath string, nameNormalizer func(string) string) (string, error) {
 	operationId := strings.ToLower(opName)
 
 	if opName == "" {
