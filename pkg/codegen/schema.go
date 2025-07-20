@@ -291,7 +291,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 			Description:         schema.Description,
 			DefineViaAlias:      true,
 			OAPISchema:          schema,
-			SkipOptionalPointer: globalState.options.OutputOptions.PreferSkipOptionalPointer,
+			SkipOptionalPointer: state.options.OutputOptions.PreferSkipOptionalPointer,
 		}, nil
 	}
 
@@ -299,7 +299,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 		Description: schema.Description,
 		OAPISchema:  schema,
 		// NOTE that SkipOptionalPointer will be defaulted to the global value, but can be overridden on a per-type/-field basis
-		SkipOptionalPointer: globalState.options.OutputOptions.PreferSkipOptionalPointer,
+		SkipOptionalPointer: state.options.OutputOptions.PreferSkipOptionalPointer,
 	}
 
 	// AllOf is interesting, and useful. It's the union of a number of other
@@ -351,7 +351,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 				// We have an object with no properties. This is a generic object
 				// expressed as a map.
 				outType = "map[string]interface{}"
-				setSkipOptionalPointerForContainerType(&outSchema)
+				state.setSkipOptionalPointerForContainerType(&outSchema)
 			} else { // t == ""
 				// If we don't even have the object designator, we're a completely
 				// generic type.
@@ -415,7 +415,7 @@ func (state *State) GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (S
 				// since we don't need them for a simple map.
 				outSchema.HasAdditionalProperties = false
 				outSchema.GoType = fmt.Sprintf("map[string]%s", additionalPropertiesType(outSchema))
-				setSkipOptionalPointerForContainerType(&outSchema)
+				state.setSkipOptionalPointerForContainerType(&outSchema)
 				return outSchema, nil
 			}
 
@@ -616,7 +616,7 @@ func (state *State) oapiSchemaToGoType(schema *openapi3.Schema, path []string, o
 		if sliceContains(state.options.OutputOptions.DisableTypeAliasesForType, "array") {
 			outSchema.DefineViaAlias = false
 		}
-		setSkipOptionalPointerForContainerType(outSchema)
+		state.setSkipOptionalPointerForContainerType(outSchema)
 
 	} else if t.Is("integer") {
 		// We default to int if format doesn't ask for something else.
@@ -658,7 +658,7 @@ func (state *State) oapiSchemaToGoType(schema *openapi3.Schema, path []string, o
 		switch f {
 		case "byte":
 			outSchema.GoType = "[]byte"
-			setSkipOptionalPointerForContainerType(outSchema)
+			state.setSkipOptionalPointerForContainerType(outSchema)
 		case "email":
 			outSchema.GoType = "openapi_types.Email"
 		case "date":
@@ -765,7 +765,7 @@ func (state *State) GenFieldsFromProperties(props []Property) []string {
 		omitZero := false
 
 		// default, but allow turning of
-		if shouldOmitEmpty && p.Schema.SkipOptionalPointer && globalState.options.OutputOptions.PreferSkipOptionalPointerWithOmitzero {
+		if shouldOmitEmpty && p.Schema.SkipOptionalPointer && state.options.OutputOptions.PreferSkipOptionalPointerWithOmitzero {
 			omitZero = true
 		}
 
@@ -953,11 +953,19 @@ func (state *State) generateUnion(outSchema *Schema, elements openapi3.SchemaRef
 	return nil
 }
 
+// TODO: uncomment
+// // setSkipOptionalPointerForContainerType ensures that the "optional pointer" is skipped on container types (such as a slice or a map).
+// // This is controlled using the `prefer-skip-optional-pointer-on-container-types` Output Option
+// // NOTE that it is still possible to override this on a per-field basis with `x-go-type-skip-optional-pointer`
+// func setSkipOptionalPointerForContainerType(outSchema *Schema) {
+// 	globalState.setSkipOptionalPointerForContainerType(outSchema)
+// }
+
 // setSkipOptionalPointerForContainerType ensures that the "optional pointer" is skipped on container types (such as a slice or a map).
 // This is controlled using the `prefer-skip-optional-pointer-on-container-types` Output Option
 // NOTE that it is still possible to override this on a per-field basis with `x-go-type-skip-optional-pointer`
-func setSkipOptionalPointerForContainerType(outSchema *Schema) {
-	if !globalState.options.OutputOptions.PreferSkipOptionalPointerOnContainerTypes {
+func (state *State) setSkipOptionalPointerForContainerType(outSchema *Schema) {
+	if !state.options.OutputOptions.PreferSkipOptionalPointerOnContainerTypes {
 		return
 	}
 

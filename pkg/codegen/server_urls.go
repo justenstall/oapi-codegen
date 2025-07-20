@@ -20,16 +20,21 @@ type ServerObjectDefinition struct {
 	OAPISchema *openapi3.Server
 }
 
-func GenerateServerURLs(t *template.Template, spec *openapi3.T) (string, error) {
+// TODO: uncomment
+// func GenerateServerURLs(t *template.Template, spec *openapi3.T) (string, error) {
+// 	return globalState.GenerateServerURLs(t, spec)
+// }
+
+func (state *State) GenerateServerURLs(t *template.Template, spec *openapi3.T) (string, error) {
 	names := make(map[string]*openapi3.Server)
 
 	for _, server := range spec.Servers {
 		suffix := server.Description
 		if suffix == "" {
-			suffix = nameNormalizer(server.URL)
+			suffix = state.nameNormalizer(server.URL)
 		}
 		name := serverURLPrefix + UppercaseFirstCharacter(suffix)
-		name = nameNormalizer(name)
+		name = state.nameNormalizer(name)
 
 		// if this is the only type with this name, store it
 		if _, conflict := names[name]; !conflict {

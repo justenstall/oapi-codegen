@@ -268,7 +268,7 @@ func (state *State) Generate() (string, error) {
 
 	var serverURLsDefinitions string
 	if opts.Generate.ServerURLs {
-		serverURLsDefinitions, err = GenerateServerURLs(t, spec)
+		serverURLsDefinitions, err = state.GenerateServerURLs(t, spec)
 		if err != nil {
 			return "", fmt.Errorf("error generating Server URLs: %w", err)
 		}

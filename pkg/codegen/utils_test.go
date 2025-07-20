@@ -236,8 +236,8 @@ func TestRefPathToGoType(t *testing.T) {
 	gen := &State{}
 	gen.importMapping = constructImportMapping(
 		map[string]string{
-			"doc.json":                    "externalref0",
-			"http://deepmap.com/doc.json": "externalref1",
+			"doc.json":                    "externalRef0",
+			"http://deepmap.com/doc.json": "externalRef1",
 			// using the "current package" mapping
 			"dj-current-package.yml": "-",
 		},
