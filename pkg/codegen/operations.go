@@ -136,8 +136,15 @@ func (pd ParameterDefinition) GoName() string {
 	return pd.state.SchemaNameToTypeName(goName)
 }
 
+// Deprecated: Use HasOptionalPointer, as it is clearer what the intent is.
 func (pd ParameterDefinition) IndirectOptional() bool {
 	return !pd.Required && !pd.Schema.SkipOptionalPointer
+}
+
+// HasOptionalPointer indicates whether the generated property has an optional pointer associated with it.
+// This takes into account the `x-go-type-skip-optional-pointer` extension, allowing a parameter definition to control whether the pointer should be skipped.
+func (pd ParameterDefinition) HasOptionalPointer() bool {
+	return pd.Required == false && pd.Schema.SkipOptionalPointer == false //nolint:staticcheck
 }
 
 type ParameterDefinitions []ParameterDefinition
@@ -218,7 +225,8 @@ func DescribeSecurityDefinition(securityRequirements openapi3.SecurityRequiremen
 
 // OperationDefinition describes an Operation
 type OperationDefinition struct {
-	OperationId string // The operation_id description from Swagger, used to generate function names
+	// OperationId is the `operationId` field from the OpenAPI Specification, after going through a `nameNormalizer`, and will be used to generate function names
+	OperationId string
 
 	PathParams          []ParameterDefinition // Parameters in the path, eg, /path/:param
 	HeaderParams        []ParameterDefinition // Parameters in HTTP headers
@@ -310,7 +318,7 @@ func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefini
 				if contentType.Schema != nil {
 					responseSchema, err := o.state.GenerateGoSchema(contentType.Schema, []string{o.OperationId, responseName})
 					if err != nil {
-						return nil, fmt.Errorf("Unable to determine Go type for %s.%s: %w", o.OperationId, contentTypeName, err)
+						return nil, fmt.Errorf("unable to determine Go type for %s.%s: %w", o.OperationId, contentTypeName, err)
 					}
 
 					var typeName string
@@ -320,7 +328,7 @@ func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefini
 					case StringInArray(contentTypeName, contentTypesHalJSON):
 						typeName = fmt.Sprintf("HALJSON%s",
 							o.state.nameNormalizer.Normalize(responseName))
-					case "application/json" == contentTypeName:
+					case contentTypeName == "application/json":
 						// if it's the standard application/json
 						typeName = fmt.Sprintf("JSON%s",
 							o.state.nameNormalizer.Normalize(responseName))
@@ -592,25 +600,34 @@ func (state *State) OperationDefinitions(swagger *openapi3.T) ([]OperationDefini
 		// Each path can have a number of operations, POST, GET, OPTIONS, etc.
 		pathOps := pathItem.Operations()
 		for _, opName := range SortedMapKeys(pathOps) {
+			// NOTE that this is a reference to the existing copy of the Operation, so any modifications will modify our shared copy of the spec
 			op := pathOps[opName]
+
 			if pathItem.Servers != nil {
 				op.Servers = &pathItem.Servers
 			}
+			// take a copy of operationId, so we don't modify the underlying spec
+			operationId := op.OperationID
 			// We rely on OperationID to generate function names, it's required
-			if op.OperationID == "" {
-				op.OperationID, err = generateDefaultOperationID(opName, requestPath, toCamelCaseFunc)
+			if operationId == "" {
+				operationId, err = generateDefaultOperationID(opName, requestPath, toCamelCaseFunc)
 				if err != nil {
 					return nil, fmt.Errorf("error generating default OperationID for %s/%s: %s",
 						opName, requestPath, err)
 				}
 			} else {
-				op.OperationID = state.nameNormalizer.Normalize(op.OperationID)
+				operationId = state.nameNormalizer.Normalize(operationId)
 			}
-			op.OperationID = typeNamePrefix(op.OperationID) + op.OperationID
+			operationId = typeNamePrefix(operationId) + operationId
+
+			if !state.options.Compatibility.PreserveOriginalOperationIdCasingInEmbeddedSpec {
+				// update the existing, shared, copy of the spec if we're not wanting to preserve it
+				op.OperationID = operationId
+			}
 
 			// These are parameters defined for the specific path method that
 			// we're iterating over.
-			localParams, err := state.DescribeParameters(op.Parameters, []string{op.OperationID + "Params"})
+			localParams, err := state.DescribeParameters(op.Parameters, []string{operationId + "Params"})
 			if err != nil {
 				return nil, fmt.Errorf("error describing global parameters for %s/%s: %s",
 					opName, requestPath, err)
@@ -633,14 +650,14 @@ func (state *State) OperationDefinitions(swagger *openapi3.T) ([]OperationDefini
 				return nil, err
 			}
 
-			bodyDefinitions, typeDefinitions, err := state.GenerateBodyDefinitions(op.OperationID, op.RequestBody)
+			bodyDefinitions, typeDefinitions, err := state.GenerateBodyDefinitions(operationId, op.RequestBody)
 			if err != nil {
 				return nil, fmt.Errorf("error generating body definitions: %w", err)
 			}
 
 			state.ensureExternalRefsInRequestBodyDefinitions(&bodyDefinitions, pathItem.Ref)
 
-			responseDefinitions, err := state.GenerateResponseDefinitions(op.OperationID, op.Responses.Map())
+			responseDefinitions, err := state.GenerateResponseDefinitions(operationId, op.Responses.Map())
 			if err != nil {
 				return nil, fmt.Errorf("error generating response definitions: %w", err)
 			}
@@ -652,7 +669,7 @@ func (state *State) OperationDefinitions(swagger *openapi3.T) ([]OperationDefini
 				HeaderParams: FilterParameterDefinitionByType(allParams, "header"),
 				QueryParams:  FilterParameterDefinitionByType(allParams, "query"),
 				CookieParams: FilterParameterDefinitionByType(allParams, "cookie"),
-				OperationId:  state.nameNormalizer.Normalize(op.OperationID),
+				OperationId:  state.nameNormalizer.Normalize(operationId),
 				// Replace newlines in summary.
 				Summary:         op.Summary,
 				Method:          opName,

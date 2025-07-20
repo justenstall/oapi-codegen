@@ -674,6 +674,12 @@ func SwaggerUriToGorillaUri(uri string) string {
 //	{?param}
 //	{?param*}
 func SwaggerUriToStdHttpUri(uri string) string {
+	// https://pkg.go.dev/net/http#hdr-Patterns-ServeMux
+	// The special wildcard {$} matches only the end of the URL. For example, the pattern "/{$}" matches only the path "/", whereas the pattern "/" matches every path.
+	if uri == "/" {
+		return "/{$}"
+	}
+
 	return pathParamRE.ReplaceAllString(uri, "{$1}")
 }
 
@@ -964,6 +970,8 @@ func DeprecationComment(reason string) string {
 	content := "Deprecated:" // The colon is required at the end even without reason
 	if reason != "" {
 		content += fmt.Sprintf(" %s", reason)
+	} else {
+		content += " this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set"
 	}
 
 	return stringToGoCommentWithPrefix(content, "")
@@ -1182,7 +1190,7 @@ func isAdditionalPropertiesExplicitFalse(s *openapi3.Schema) bool {
 		return false
 	}
 
-	return *s.AdditionalProperties.Has == false //nolint:gosimple
+	return *s.AdditionalProperties.Has == false //nolint:staticcheck
 }
 
 func sliceContains[E comparable](s []E, v E) bool {
